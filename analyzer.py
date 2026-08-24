@@ -132,16 +132,18 @@ def parse_response(raw_text: str) -> list[Problem]:
     return problems
 
 
-def analyze_posts_via_api(
+def analyze_posts_via_api_raw(
     posts: list[Post],
     model: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
-    max_tokens: int = 4000,
-) -> list[Problem]:
+    max_tokens: int = 8000,
+) -> str:
     """
-    Automated path: send `posts` to Gemini and return Problem objects
-    directly. Requires `google-genai` and GEMINI_API_KEY; it is not needed
-    for the manual workflow (see build_full_prompt / parse_response above).
+    Automated path: send `posts` to Gemini and return the RAW response text
+    (unparsed JSON string), after checking for truncation. Split out from
+    analyze_posts_via_api() so callers that want to archive the exact raw
+    model output (e.g. main.py's `run` command, mirroring the manual
+    workflow's response.txt) can do so before/independent of parsing it.
     """
     import os
 
@@ -182,4 +184,42 @@ def analyze_posts_via_api(
     if not raw_text or not raw_text.strip():
         raise RuntimeError("Gemini returned no text response to parse.")
 
+    # Detect truncation BEFORE attempting to parse. If Gemini hit the
+    # max_output_tokens cap mid-generation, response.text will contain a
+    # syntactically incomplete JSON array (e.g. a dangling, unterminated
+    # string). Rather than let that surface as a confusing JSONDecodeError
+    # deep inside parse_response, check finish_reason and fail fast with an
+    # actionable message.
+    try:
+        finish_reason = response.candidates[0].finish_reason
+    except (AttributeError, IndexError, TypeError):
+        finish_reason = None
+
+    if finish_reason is not None and str(finish_reason).upper() in ("MAX_TOKENS", "FINISH_REASON_MAX_TOKENS", "2"):
+        raise RuntimeError(
+            f"Gemini's response was truncated (hit max_output_tokens={max_tokens}) "
+            "before finishing the JSON array. Increase max_tokens (e.g. "
+            "analyze_posts_via_api(posts, max_tokens=12000)) or reduce the number "
+            "of posts analyzed."
+        )
+
+    return raw_text
+
+
+def analyze_posts_via_api(
+    posts: list[Post],
+    model: str = DEFAULT_MODEL,
+    api_key: Optional[str] = None,
+    max_tokens: int = 8000,
+) -> list[Problem]:
+    """
+    Automated path: send `posts` to Gemini and return Problem objects
+    directly. Requires `google-genai` and GEMINI_API_KEY; it is not needed
+    for the manual workflow (see build_full_prompt / parse_response above).
+    Thin wrapper around analyze_posts_via_api_raw() + parse_response() for
+    callers that just want the parsed result and don't need the raw text.
+    """
+    raw_text = analyze_posts_via_api_raw(
+        posts, model=model, api_key=api_key, max_tokens=max_tokens
+    )
     return parse_response(raw_text)

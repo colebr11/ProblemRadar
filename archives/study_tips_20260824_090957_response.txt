@@ -1,0 +1,44 @@
+[
+  {
+    "title": "Difficulty balancing full-time employment with heavy study schedules",
+    "description": "Adult learners and working professionals enrolled in full-time or self-paced educational programs struggle to find time for consistent studying alongside full-time jobs and family commitments. They face time management challenges and burnout from trying to fit rigid study demands into irregular or packed schedules.",
+    "post_count": 2,
+    "representative_post_ids": [
+      "1vsxhu5",
+      "1p1pvgf"
+    ],
+    "who_experiences": "Working professionals, parents, and adult learners enrolled in college or self-paced certification programs.",
+    "existing_workarounds": "Asking online communities for time-management advice, studying during late-night hours, and attempting self-imposed daily calendars.",
+    "pain_level": 8,
+    "opportunity_score": 78,
+    "score_reasoning": "Balancing career, family, and higher education creates intense daily friction. Software that dynamically fits micro-learning blocks into existing work/calendar schedules offers strong commercial potential for busy adult students."
+  },
+  {
+    "title": "Lack of structured exam preparation tools tailored for neurodivergent (ADHD/AuDHD) learners",
+    "description": "Learners with ADHD or AuDHD struggle with executive dysfunction, lack of external structure, and traditional study techniques when preparing for self-paced courses or professional exams. Standard study tools fail to provide the dynamic accountability, focus mechanisms, or structured guidance required to prevent overwhelm.",
+    "post_count": 2,
+    "representative_post_ids": [
+      "1s4dhnt",
+      "1p1pvgf"
+    ],
+    "who_experiences": "Students and working professionals with ADHD or AuDHD preparing for professional certifications or self-paced academic degrees.",
+    "existing_workarounds": "Seeking neurodivergent-specific study tips on Reddit, using basic timers or check-lists, and testing various general study apps that lack ADHD-friendly design.",
+    "pain_level": 8,
+    "opportunity_score": 82,
+    "score_reasoning": "Most study apps assume neurotypical executive function. A dedicated app incorporating ADHD-friendly frameworks (gamified micro-milestones, body-doubling features, and flexible pacing) addresses a highly motivated and underserved user base."
+  },
+  {
+    "title": "Resource overload and analysis paralysis when beginning complex self-study",
+    "description": "Self-directed learners embarking on major exam prep or subject mastery feel overwhelmed by the sheer volume of available textbooks, apps, video channels, and practice materials. Without a clear starting point or structured roadmap, learners experience analysis paralysis and struggle to turn disparate resources into a coherent plan.",
+    "post_count": 2,
+    "representative_post_ids": [
+      "1u7jto4",
+      "1k7e9em"
+    ],
+    "who_experiences": "Self-taught students, language learners, and test takers preparing for comprehensive exams like the MCAT without formal guidance.",
+    "existing_workarounds": "Sifting through online forum recommendations, purchasing multiple redundant prep books, and manually trying to stitch together study schedules.",
+    "pain_level": 7,
+    "opportunity_score": 72,
+    "score_reasoning": "Initial planning friction delays active learning and causes stress. An intelligent platform that curates vetted resources and automatically builds a customized, step-by-step learning path based on student goals would solve this onboarding hurdle."
+  }
+]
