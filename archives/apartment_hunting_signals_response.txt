@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Aggressive Rent Spikes, Hidden Fees, and Opaque Move-In Costs",
+    "description": "Renters are blindsided by unannounced admin fees, parking charges, utility add-ons, and steep application fees before touring. In competitive markets, landlords and brokers hide the true effective rent or demand 3x-4x rent upfront without transparent fee sheets.",
+    "who_experiences_it": "Renters relocating to new cities, young professionals, and budget-conscious tenants.",
+    "existing_workarounds": "Demanding physical fee sheets during tours, calculating prorated rent specials manually, using crowdsourced building databases like OpenIgloo or landlady reviews.",
+    "pain_level": 8,
+    "opportunity_score": 88,
+    "reasoning": "High financial anxiety and frustration with surprise fees create strong demand for automated fee breakdown tools, effective rent calculators, and transparent price tracking apps.",
+    "representative_post_ids": ["1tq6h95", "1uwtge9", "1v2wgfe", "1fw7xje"]
+  },
+  {
+    "title": "Ghosting Brokers, Delayed Listing Feeds, and Time-Critical Listing Friction",
+    "description": "Good rental units get taken in hours on major listing sites (StreetEasy, Zillow), while brokers frequently ghost inquiries or demand pre-approval paperwork before allowing tours. Renters struggle to find unlisted lease takeovers and early lease-break deals.",
+    "who_experiences_it": "Urban renters in high-demand markets (NYC, Seattle, DC, Atlanta) needing fast turnarounds.",
+    "existing_workarounds": "Monitoring daily lease-break aggregators (e.g. leaseswap.nyc), preparing pre-filled application folders, or hiring third-party local apartment tourers.",
+    "pain_level": 9,
+    "opportunity_score": 85,
+    "reasoning": "Substantial stress during time-sensitive moves creates massive demand for real-time lease takeover alerts, instant broker communication platforms, and verified listing notifications.",
+    "representative_post_ids": ["1tq6h95", "1ub7ean", "1f4j2rw", "1fw7xje"]
+  },
+  {
+    "title": "Frustration with Rigid, Unhelpful Leasing Chatbots & Fake Listings",
+    "description": "Property management companies are replacing human contact with automated AI leasing chatbots that cannot answer specific questions (parking rules, move-in logistics) and loop endlessly into automated tour scheduling. Renters also encounter high rates of scam listings on social platforms.",
+    "who_experiences_it": "Renters contacting management companies remotely or trying to clarify specific lease conditions.",
+    "existing_workarounds": "Reverse image searching listing photos, cross-checking property records on amirentstabilized or Landlord Watchlists, or posting on local subreddits for human advice.",
+    "pain_level": 7,
+    "opportunity_score": 79,
+    "reasoning": "Growing annoyance with low-quality AI gatekeepers creates an opportunity for smart, context-aware tenant concierge tools and automated scam verification.",
+    "representative_post_ids": ["1ucy8g1", "1r75l5h", "1fw7xje", "1v2wgfe"]
+  }
+]

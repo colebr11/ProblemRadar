@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Hidden Fees, Deceptive Listings, and Rental Bait-and-Switch Scams",
+    "description": "Apartment hunters encounter listings with photos that look completely different from reality, unannounced move-in/administrative fees, sudden rent increases right after inquiring, and outright fraudulent listing scams. Renters struggle to get honest, transparent pricing and fee sheet breakdowns before investing time and application fees.",
+    "post_count": 7,
+    "representative_post_ids": ["1ta24nf", "1uwtge9", "1osyku8", "1k0bwoe", "1omp4j7", "1j1rsof", "1vj6cf2"],
+    "who_experiences": "First-time renters, students, and relocating professionals searching for apartments online.",
+    "existing_workarounds": "Demanding itemized fee sheets before applying, reverse-image searching listing photos, checking community subreddits, or relying on private landlord word-of-mouth.",
+    "pain_level": 8,
+    "opportunity_score": 85,
+    "score_reasoning": "High financial vulnerability and widespread frustration with hidden fees create strong demand for automated fee transparency, listing verification, and landlord review tools."
+  },
+  {
+    "title": "Extreme Market Competition and Exorbitant Upfront Rental Application Costs",
+    "description": "In competitive urban rental markets, apartments get snatched up within hours of posting, forcing renters into high-pressure decisions. Landlords and brokers demand steep upfront costs—including broker fees, multi-month security deposits, and non-refundable application fees—just to schedule viewings or apply.",
+    "post_count": 4,
+    "representative_post_ids": ["1k0bwoe", "1sgt5cr", "1j1rsof", "1nur021"],
+    "who_experiences": "Renters in high-demand, high-cost-of-living metropolitan areas (e.g., NYC, Atlanta, California).",
+    "existing_workarounds": "Setting up real-time listing alerts, utilizing specialized zoning/mapping tools, carrying pre-filled application packages, or paying expensive broker commissions under pressure.",
+    "pain_level": 9,
+    "opportunity_score": 80,
+    "score_reasoning": "Substantial emotional stress and financial burden during time-sensitive searches make instant listing alerts and streamlined application tools highly valuable to urban renters."
+  },
+  {
+    "title": "Undisclosed Uninhabitable Conditions, Pests, and Misrepresented Amenities",
+    "description": "Renters frequently discover severe unlisted defects during tours or after move-in, including roach/rodent infestations, toxic mold, hazardous wiring, and lack of basic appliances (such as hot plates or mini-fridges passed off as full kitchens). Maintenance delays and landlord neglect leave tenants stuck in sub-standard living conditions.",
+    "post_count": 6,
+    "representative_post_ids": ["1k0bwoe", "1omp4j7", "1nur021", "1vj6cf2", "1vr4q9i", "1098r97"],
+    "who_experiences": "Budget-conscious renters, students, and tenants renting without in-person advance inspections.",
+    "existing_workarounds": "Speaking directly to current building residents during tours, posting photos on community forums for mold/wiring identification, or relying on tenant complaint databases.",
+    "pain_level": 9,
+    "opportunity_score": 78,
+    "score_reasoning": "High emotional and health-related distress, though partially constrained by physical property inspection limitations; crowdsourced tenant review apps can bridge the information gap."
+  }
+]

@@ -1,0 +1,230 @@
+You are an analyst for "Problem Radar", a tool that reads online discussion posts (Reddit threads, app reviews, forum posts) and finds RECURRING problems, frustrations, unmet needs, or inefficient workarounds that could plausibly be solved with a piece of software.
+
+You will be given a numbered list of posts, each with a short id like [p1].
+
+Your job:
+1. Read all posts and identify clusters of posts that describe the SAME underlying problem — not just posts that share a topic, subreddit, or a few keywords.
+2. Do NOT force posts into a shared category just because they are thematically adjacent. Two posts about "money" or "cooking" are not automatically the same problem. Only group posts if a reasonable person would say "these people are describing the same frustration and would want the same solution."
+3. A single post describing a one-off, unrelated complaint should NOT be included in any cluster and should NOT be reported as a problem. Only report problems that recur across MULTIPLE posts (2 or more) unless the instructions say otherwise.
+4. It is completely fine, and expected, for some posts to not belong to any recurring problem. Do not invent a category just to use every post.
+5. Be conservative: if you are unsure whether two posts describe the same problem, treat them as different problems rather than merging them.
+
+For each genuinely recurring problem you find, produce an object with these exact fields:
+  - "title": short, specific problem title (not a generic category name)
+  - "description": 2-4 sentences clearly describing the problem
+  - "post_count": integer, number of posts in the input describing this problem
+  - "representative_post_ids": list of the post ids (e.g. ["p1", "p3"]) that best represent this problem — include ALL posts you assigned to this cluster
+  - "who_experiences": short description of who experiences this problem
+  - "existing_workarounds": what workarounds people currently use, based on the posts
+  - "pain_level": integer 1-10, how painful/frustrating this problem seems based on the language used in the posts
+  - "opportunity_score": integer 1-100, your estimate of how promising this is as a software opportunity, considering recurrence, pain level, and whether existing workarounds are clearly inadequate
+  - "score_reasoning": 1-3 sentences explaining the opportunity_score
+
+Respond with ONLY a JSON array of these objects. No markdown code fences, no preamble, no commentary, no trailing text. If you find zero recurring problems, respond with an empty JSON array: []
+
+
+---
+
+Here are 50 posts to analyze:
+
+[lbt48d] source=reddit subreddit=selfie
+Title: Apartment hunting today wish me luck 🥰 (over18)
+Body: submitted by /u/AlanaAraya to r/selfie [link] [comments]
+
+[1tq6h95] source=reddit subreddit=movingtoNYC
+Title: things i wish i knew about apartment hunting before moving to nyc
+Body: moved here a few years ago and wasted the first few weeks doing it completely wrong, so figured i'd write down what i actually learned in case it helps someone about to make the jump. the biggest thing: the great apartments rarely make it to streeteasy. the actual deals are lease takeovers and lease breaks - someone leaving early who needs to hand off their place fast. by the time something hits a listing site its usually overpriced or at least market-priced (which days days feels overpriced anyways) - took me way too long to figure that out. stuff that would've saved me time: - get all your paperwork ready before you start touring. pay stubs, bank statements, ID, guarantor info if you need one. if you find a half decent deal it will be gone in hours. you have to be able to say yes on the spot and have everything you need to apply. - look into rent stabilized buildings. landlord can only raise by a small % set each year (2-3% lately) so you're protected long term. rough rule: built before 1974 with 6+ units is usually stabilized - double check if a place is rent controlled/stabilized before signing. i've had multiple friends whose landlords never told them and just raised the rent however they wanted year over year, which is illegal. you can look the building up yourself at https://amirentstabilized.com/ - lease takeovers are underrated. someone hands off their lease, often furnished, and you skip the guarantor/credit hurdle that screws over anyone without 2 years of us income history. i made a map of all takeovers (free, no login, updated daily) here: https://leaseswap.nyc/takeovers - summer is peak demand and peak prices. you can get a noticeably better deal in winter, so if youre moving in the summer it can be worth doing a short sublet and signing a real lease once it cools down - a few channels to skip: facebook group posts for apartments are like 90% scams in my experience. renthop has almost no original inventory and more scams than you'd expect, basically skippable. facebook marketplace is actually decent but more for finding roommates than apartments - budget for the upfront cost being brutal. first month + deposit (and sometimes more) can mean 3x rent before you even move in. and this is actually way better than it was a year ago where you'd also have to account for broker fee lmk if i missed anything! submitted by /u/thisisgiulio to r/movingtoNYC [link] [comments]
+
+[1ub7ean] source=reddit subreddit=NYCapartments
+Title: Frustrated apartment hunting in UES/Lenox Hill for work convenience. Budget is ~$3,600,Blbut can’t lock anything down. Am I looking too early for a 7/15 start date? Should I expand to Queens ( 45-min commute w/ 2 subway transfers)—is that reasonable daily? Brokers are mean & ghost u. Iam done
+Body: submitted by /u/Few-Device-6063 to r/NYCapartments [link] [comments]
+
+[1f4j2rw] source=reddit subreddit=NYCapartments
+Title: what do you hate most about apartment hunting in nyc?
+Body: i really disliked that i needed to constantly check streeteasy for new listings, otherwise i'd be too late to contact about the listing. that, and the anxiety that my lease is up in a few weeks and i need a new place ASAP really raised my blood pressure... curious how all your experiences have been with it submitted by /u/textmeapartments to r/NYCapartments [link] [comments]
+
+[1uwtge9] source=reddit subreddit=ATLHousing
+Title: Apartment hunting tips I wish every renter knew
+Body: I work in the apartment industry helping people find the best deals, so I figured I'd share a few things I wish more renters knew. The Atlanta market is really competitive right now. There are a ton of new communities opening, so don't just look at the advertised rent. A lot of properties are offering 1–3 months free, and if you prorate those specials across the lease term, the effective rent can end up being hundreds less per month. Always ask for a fee sheet before you leave. Take a picture of it. It's way easier to compare places later, and you'll catch things like parking, trash, amenity fees, package fees, pest control, etc. before they surprise you. Don't be afraid to negotiate. If another property is offering a better deal, tell the leasing agent. It won't always work, but I've seen places waive application fees or admin fees just because someone asked. Ask about move-in day before you sign. Find out how freight elevator reservations work, if there are move-in fees, and whether there are restrictions on move-in times. It seems minor until you're trying to move and realize the elevator is booked for the next week. Curious if anyone else has apartment hunting tips that have saved them money or headaches. submitted by /u/LocateNow to r/ATLHousing [link] [comments]
+
+[1v91j75] source=reddit subreddit=movingtoNYC
+Title: Need apartment hunting recommendations
+Body: Hi everyone! I (23f) received a job offer in the city and am looking to relocate from Florida with my husband (23m). I will need to be in the city by August 10th, and thankfully have friends I am staying with while my husband packs and will eventually join me around late August/early September. Combined we make around $150k and both have good credit. For the commute to my new job, we are ideally looking for something midtown/upper east side area and struggling to find things. Once I am in the city, I’m not sure how much time I will have to tour apartments. Would I be better off just hiring a broker? Thank you for any advice! submitted by /u/Disaster_alpaca to r/movingtoNYC [link] [comments]
+
+[1r75l5h] source=reddit subreddit=Columbus
+Title: Apartment hunting: who should we avoid? Recommendations?
+Body: Husband and I are starting to look for a new place again. We've been looking everywhere: apartments.com, Zillow, Facebook Marketplace. I would check out Craigslist too but I feel like it's littered with too-good-to-be-true scams. We're renting with 1st Place right now and it's not as great as we had hoped. The place is sloppily flipped and not worth the price at all. Our rent budget is $1600/mo. Has anyone had good or bad experiences with other complexes/realtors they could share? submitted by /u/averybabery to r/Columbus [link] [comments]
+
+[1ufuxn5] source=reddit subreddit=AskPhoenix
+Title: Tempe Vicinity Apartment Hunting & Landlord Recommendations?
+Body: Hello everyone! I just got an offer from ASU and will move to the valley later this year. I am mainly looking for studio/1bed on the Tempe, Chandler, east phoenix or the west mesa area with around $1400 budget. In midwest there's a bunch of nice property management companies focusing on the local and really nice, do you guys have any recommendation of such local companies in the phoenix area? I did my research and found out seems like apartments dominate the market in the valley. Here is my apartment short list, do you have any experience or recs for those complex? The Village at Sun Valley Marabrisa Aviva San Montego The Pomeroy Blue Eastline Summit Lake Eastridge Mandarina The Cascades ReNue Downtown Moving really annoys me and I just want to look for a place letting me stay peacefully in the next few years. Thank you in advance! submitted by /u/infinitywww to r/AskPhoenix [link] [comments]
+
+[1tm0vwv] source=reddit subreddit=washingtondc
+Title: Apartment hunting near AU: street parking experience + apartment recommendations?
+Body: Hi everyone, I’m moving to DC soon for graduate school at American University and apartment hunting right now. After a lot of searching, I’m realizing my budget (around $1,950 total including utilities + parking) is hard to make work if I need a building with on-site parking. If I’m open to street parking, it seems like I’d have a lot more options. I’m currently considering Idaho Terrace and had a couple questions: How hard is street parking there (or nearby) on a typical day? Do you usually need to parallel park into tight spots between two cars, or are there often easier spots where one end is open? I’m comfortable driving but not super confident with tight parallel parking. Is it generally safe to leave a car parked on the street for a few days? I’ll mostly use bus/train to get to AU and keep the car mainly for weekends, so it may sit for several days at a time. Also, if anyone knows apartment buildings with on-site parking around this budget, either near AU or somewhere with an easy direct commute (bus or Red Line), I’d really appreciate recommendations. For reference, I know Connecticut Heights fits my budget, but the recent reviews made me a little hesitant. I’ve also looked at a lot of WC Smith buildings, which seem good overall, but many would mean relying on street parking, which is why I’m trying to learn more about it. Thanks so much! submitted by /u/Full_Coach_8973 to r/washingtondc [link] [comments]
+
+[1v2wgfe] source=reddit subreddit=AskSeattle
+Title: Apartment hunting advice (Beyond Google Reviews, Beyond location recommends!)
+Body: Hey everyone! I'm planning to start apartment hunting soon with the goal of moving somewhere in the Seattle area around Oct/Nov (open to Lynnwood, Mt Lake Terrace, Kenmore, North Seattle, Green Lake, etc). I've already done a good amount of research re: these neighborhoods, so I'm not really looking for recommendations on where to live. I've also spent a lot of time reading Google/Yelp reviews and have made a list of apartments/ management companies to avoid. So what I'm really looking for is the stuff that *doesn't* necessarily show up on Google/Yelp. In other words, I'm curious about all the things you *wish* you'd known A) before you started apartment hunting in Seattle, B) during the process of looking and communicating with management, and C) after you signed the lease. Some examples might include the following (you don't have to touch on all of these, just whatever advice you have to offer): -Hidden fees or lease terms that caught you by surprise -Questions you wish you'd asked before signing -Dealing with property management companies during/after signing a lease. -Application/move in costs you didn't anticipate -Red flags you only recognized in hindsight (and patterns that become red flags over time that may not be recognizable at first glance) -Lessons you only learned after living somewhere for a bit Basically, if you could go back and give your "pre-apartment-hunting" self a bunch of advice, what would it be? If it helps, I'm a female in my mid-30s, who will be living alone with no pets. That may or may not inform the advice, but just mentioning that in case it does. Thanks so much in advance! submitted by /u/Hot_Historian_6967 to r/AskSeattle [link] [comments]
+
+[1fw7xje] source=reddit subreddit=NYCapartments
+Title: Remote NYC apartment hunting resources I wish I had during my search.
+Body: Just over a year ago, I signed a lease sight unseen in Williamsburg. I was living in Boston at the time and had been remotely searching for a place in Brooklyn for months. As I'm sure many of you are acutely aware, the apartment hunt process was disorganized, hectic, and downright anxiety-inducing. On top of that, I had read countless horror stories about scams, misinformation in listings, and nightmare experiences with brokers/landlords that had me on high alert. Thanks to the support of friends in the area, I found an apartment that I’m overall happy with. However, since signing I’ve been frustrated to discover a number resources that would've been incredibly helpful during my search. It’s too late for me, but hopefully someone will find these helpful. Some resources I wish I had at my disposal: Open Igloo - Something I learned fairly quickly from talking to fellow renters in NYC, is that not all buildings and landlords are created equal. Open Igloo is a great resource for learning more about specific buildings and landlords. You can read tenants' candid (anonymous) ratings of buildings to get a sense of things like glaring issues with how the building is operated, amenities, superintendent (super) responsiveness, and more. The site also offers helpful tools like a rent calculator, rent-stabilized building map, and an informative blog. Primary use case: Spot-checking apartment buildings and landlords to ensure you don't end up trapped in a lease for a poorly run apartment. Unseen - An Uber-like marketplace that connects you with locals to tour and vet apartments for you. I was lucky enough to have a friend in Williamsburg who was willing to tour and report back on apartments for me, but if I didn't, Unseen would've been a lifesaver. Not only just to verify that listings aren't scams, but also to share unbiased pictures, videos and info. about apartments that the broker, who is monetarily tied to the listing, might not share with you. The process is simple, too. You plug listings (from Streeteasy, Zillow, etc.) into their site and they handle the rest. Primary use case: Remote, personal apartment tours to avoid scams and misinformation. StreetEasy - This is likely the most well-know name on the list, but I honestly had no idea it existed until I moved here. Streeteasy is New York specific (vs. larger aggregators like Zillow or apartments.com which are nationwide), and you can set up alerts for apartments that fit your budget, neighborhood, and amenity preferences. This is super helpful if you have some flexibility as to when you're moving. I've also come to appreciate the resources in their Blog , which is a good starting place to get a general sense of the vibe of different neighborhoods. Primary use case: Finding available apartments for rent, and getting a sense of NYC neighborhoods. NeighborhoodScout - An in-depth look at specific zip codes and neighborhoods in NYC. You can get a highly specific report on things like crime rates, demographics, average rent price etc. Primary use case: Getting a better understanding of the neighborhood you're hoping to live in. There are a wide variety of rent prices across NYC, this site may help inform you as to why one apartment is more affordable than another. Landlord Watchlist - A list of the 100 worst Landlords in NYC (yikes) based on the average number of violations that have been reported against said landlords. I don't think this list has been updated since 2023, but it's still worth a check! I was relieved, after I had already moved in, to not find my landlord on the list. Primary use case: Quick check to make sure your prospective landlord isn't on the '100 worst landlords' list. This list is, of course, not exhaustive. But I hope it helps someone! Please feel free to add additional tips and I can update the post as necessary. submitted by /u/DiscussionOne9778 to r/NYCapartments [link] [comments]
+
+[1ucy8g1] source=reddit subreddit=antiai
+Title: I hate AI chatbots for taking over my apartment hunting.
+Body: Is there a way I can trick this ai bot into offering me a free 1 year lease? I fully expect the company to not allow it, but I want them to dislike having an ai bot and possibly think about the repercussions of having one. This is a text I received from it: Hi ____, this is Eli, your virtual leasing agent for __________ _____________ - happy to help with any questions you may have. Regarding your note, I'm sorry to hear about the trouble with the call. I can provide some information about parking. We offer convenient street parking for all residents. It's important to follow community rules, as improperly parked or unauthorized vehicles may be towed at the owner's expense. Would you like to schedule a tour? Reply STOP to opt-out. Is there a way I can respond that has this bot offering me a super cheap or free one year lease?? Thank you all submitted by /u/AwarenessCharming255 to r/antiai [link] [comments]
+
+[100sovz] source=reddit subreddit=japanlife
+Title: Tips you wish you had known before/after apartment hunting
+Body: Hi all, The time has come where I'll be moving out of a university housing into more independent living conditions. I've been looking at apartment listings in the west side of Tokyo near my university for a few months now and think I have a basic gist of finding a good rental agreement: Go through english speaking companies (I have a less-than fluent Japanese level). Find listings close to stations and stores. Rent not to exceed 1/3 of monthly income. Ideally commute has minimal line changes or can easily access greater city. I was wondering if anyone had any tips or tricks that they wish they had known before or after they started apartment hunting? Are there any landlord red flags I should be on the lookout for, or any building types or neighborhoods I should probably avoid? Sorry if the questions seem open ended, but I'd appreciate any discussions below. submitted by /u/Kergastead to r/japanlife [link] [comments]
+
+[1sydofp] source=reddit subreddit=Columbus
+Title: Can I get some recommendations for apartment hunting to try to find somewhere that will get me a July lease?
+Body: Hi everyone! I will be moving to Columbus this July for a job around the Easton area. I have been looking for apartments. This is my first time apartment hunting since I was at OSU(which honestly I chose a place I regret back then). I'm planning to tour the following places currently: 4th and 5th Apartments The Heights at Worthington Place The Residences at Liberty Crossing I know, small list rn, but it's a start, even if I'm not super enthused about any of these places currently(but if anyone has personal experience w/ them let me know what you like/dislike). I'm currently aiing for an apartment in either Grandview or Worthington(have also considered Arena District) that's either a studio or a 1-bedroom. Max price I'm going for is $1400+utilities. I've had a few friends highly recommend Grandview so that's where I'm focusing my search right now, but if any of y'all know of good places/areas to look at that would likely have openings, I will be very grateful to hear them! submitted by /u/GlamourousGravy to r/Columbus [link] [comments]
+
+[1u6s803] source=reddit subreddit=NYCapartments
+Title: Apartment Hunting — Looking for Broker Recommendations
+Body: Looking for recommendations for a rental broker/agent in Manhattan. Budget up to $4,000. Looking for a studio or 1BR with in-unit laundry, natural light, pet-friendly, move-in July 1–15. Areas: FiDi, Midtown East, Murray Hill, Gramercy, Flatiron, NoMad. I’m finishing graduate school and balancing a demanding schedule, so I’m looking for someone responsive who knows Manhattan rentals well and can help streamline the search. submitted by /u/rubiaswift to r/NYCapartments [link] [comments]
+
+[1t6utb1] source=reddit subreddit=orangecounty
+Title: Apartment hunting recommendations
+Body: Reposting because I forget to add budget on my previous post. What are your recommendations for finding a good apartment (condo or townhome work too) in OC? I am planning to move out of my apartment in Ladera Ranch and am looking for new places (apartment, condo, townhome) in the surrounding areas. I’m looking for a 2 bed 2 bath with a budget of $3.1k. My current roommate is moving with me. Really apartments.com is the only real site I can see to find apartments. Are there any good places to find places to rent from owners rather than corporate complexes? Open to any other recommendations too! submitted by /u/Babayu18 to r/orangecounty [link] [comments]
+
+[1s976oy] source=reddit subreddit=cincinnati
+Title: Apartment hunting tips/recommendations?
+Body: Hey everyone my friend is relocating to Cincinnati from Cleveland. She’s only ever owned a house but recently got a divorce so she will be renting an apartment for the first time. I’m from Columbus and although I’ve been renting for years, I only know all the local companies here and who to avoid and what to look for. Do you have any recommendations for apartments and who she should avoid? She is looking for a 1 bed 1 bath with in unit washer and dryer under $1500 a month. Also for utilities are you guys run by AEP and submetering companies like Columbus? Or are there small pockets where you can get city electric? (We can get city of Columbus electricity in small areas downtown and near OSU which is much cheaper than AEP and the submetering companies.) Or do you have any bigish/well known local rental companies that are good? Any to avoid? Like in Columbus we have Pella (trash), Lykens (trash), and F&W Properties (good/okay) etc. Her job is near Kenwood town center so she would like to keep her commute under 30 minutes. Thanks in advance! submitted by /u/hiyaworld to r/cincinnati [link] [comments]
+
+[1s736gx] source=reddit subreddit=SanJose
+Title: Apartment hunting recommendations
+Body: Hi all, I'm apartment hunting and considering Cannery Park by Windsor or other similar complexes. Looking at 1 or 2 bedroom options with an easy commute to North San Jose. Single, in my 30s. Looking for areas that are walkable. Anyone have experience living there? Any thoughts appreciated! submitted by /u/Slow_Pianist_1849 to r/SanJose [link] [comments]
+
+[1t0g929] source=reddit subreddit=NYCroommates
+Title: Why is apartment hunting in NYC still this broken?Hours searching. Zillow recommendations that barely match what you want. Brokers “finding” you places but it takes forever. Dozens of applications. Random fees. Rejections with no clarity. Still needing approval. How is this still the system in 2026?
+Body: submitted by /u/Clean-Ad8256 to r/NYCroommates [link] [comments]
+
+[1q3gk7g] source=reddit subreddit=madisonwi
+Title: Recommendations for (Early) Apartment-hunting?
+Body: Hey all, I'm a recent grad and only now really starting to get into the nitty gritty of apartment searching - the current place near downtown I have I found through a connection of a connection and was a bit of a panicked choice but I've been doing alright in it. Maybe it's a blend of my tendency to overthink and my only recently outgrown student-housing mentality, but I've been anxious to nail down/search for a new place for Aug. 26 - 27 for a while now. I'm looking to get away from downtown, maybe a little northwards as I work up in Waunakee, though no real preference on east/west. I know places further from downtown are (mostly) safe from the full chaos of downtown style leasing, but I do want to try and prepare as much as possible in advance as I really want to find a place I like and can make my own. I'd like to keep my rent below $1,500, $1,600 max for a 1BR, 1BA, hopefully with laundry in-unit and covered parking. Is there anything I can do now to prepare in advance? Would touring even be in the question this early in the year? submitted by /u/LiteralTrash12 to r/madisonwi [link] [comments]
+
+[1q5sa7y] source=reddit subreddit=Cleveland
+Title: Apartment hunting, can you recommend any spot?
+Body: Good afternoon, people of Cleveland 🫡 I have moved here 10 days ago. I’m quite happy with my experience so far! You guys have been very nice, and helpful in general. I’m surprised that big city can be like this… Anyway, I’m on my friend’s couch atm. I moved here for a job, intending to find a spot shortly after arrival. Can you suggest a cool, yet not so expensive place to live? The more amenities, the better. Thank you very kindly :) submitted by /u/howto-exist to r/Cleveland [link] [comments]
+
+[1s9u3ue] source=reddit subreddit=Renters
+Title: [General US [Philadelphia] What’s the most frustrating part of apartment hunting?
+Body: I’ve been trying to understand what makes apartment hunting difficult, and I’ve noticed a few common issues like hidden fees, unclear listings, and lack of communication from landlords. Curious to hear from others here — what has been the most frustrating part of your experience? I’m also putting together a short survey to understand this better. If you’re open to sharing more, here’s the link (takes less than 2 mins): [Hi everyone, I’m conducting a quick survey on rental apartment search experiences. It takes less than 2 minutes — would really appreciate your input! [ https://forms.gle/UcR93dTaQ9BLj9Xu6\ ] submitted by /u/aditi0302 to r/Renters [link] [comments]
+
+[1qybspe] source=reddit subreddit=Denver
+Title: Need recommendations and advice on apartment hunting with bad credit
+Body: Hello everyone I’m not to sure how to do this. But I’m trying to find an apartment at the beginning of march. Problem is I have terrible credit but I make really good money. So just a quick summary I was tied up in a lease with my parents at our previous place. When we moved out the apartment complex tried to charge me 12k in damages which was so wrong on their part. I asked my parents if they had it on their credit and they said no. So I’m the only one being affected by this. Because I keep getting denied by every apartment place I’ve applied for. So fast forward I call credit bureau place and they say it’s something that can be disputed. We get it disputed and they said they can also provide me a tenant letter because the process takes 90 days for it to fully clear. I look up how I should approach places with this situation and it said I can only really talk to private landlords. But I’ve searched up and down for places like that and it’s all leasing agency’s who can’t bypass the letter. So I just wanted to get some recommendations and maybe some advice of what I should do. I have bad credit but get paid 4.2k a month and my bf has good credit but makes 2.1k a month. So that’s what I’m working with. I’ve tried to have my bf apply alone but he doesn’t make 2x rent out here so it’s really hard to get approved. And we have one cat and a dog. Also thank you for your time on reading this 🙏 submitted by /u/Tricky-Example-1943 to r/Denver [link] [comments]
+
+[1k6x35l] source=reddit subreddit=Connecticut
+Title: Looking for recommendations of a good Ramen spot in or around middletown to heal my soul. I'm apartment hunting there and considering I don't have an 800 credit score and 10,000 in my bank account I doubt I will get it, so I need the best Ramen around please!!!
+Body: submitted by /u/lucyinthesky8581 to r/Connecticut [link] [comments]
+
+[1re1xg1] source=reddit subreddit=Tenant
+Title: Hate apartment hunting? Share your experience (2–3 min survey)
+Body: submitted by /u/housing_research2026 to r/Tenant [link] [comments]
+
+[1qfvji1] source=reddit subreddit=philly
+Title: APARTMENT HUNTING/RECOMMENDATIONS
+Body: Hey guys just looking for advice when it comes to apartments. Also even if you have some apartment building recommendations.. Looking for a two bedroom but can settle for a one bedroom if I have to, I don’t care too much for an area as long as septa is available but I don’t want to be in Kensignton or the NE. I would say my budget is 2k-2.4k (would be nice is utilities are included but not a deal breaker) submitted by /u/Maximum-Peach-3881 to r/philly [link] [comments]
+
+[1qetczm] source=reddit subreddit=shelton
+Title: Apartment hunting in/around Shelton – any tips or recommendations?
+Body: Hi everyone — I’m starting to look for an apartment in or near Shelton and wanted to ask the community for advice. Are there any areas, buildings, or property managers you’d recommend (or avoid)? I’m mostly looking for something clean, reasonably quiet, and close to major roads or transit if possible. Also open to nearby towns if they make sense for commuting. Any tips on where to search or what to watch out for would be appreciated. Thanks in advance! submitted by /u/Historical_King_7270 to r/shelton [link] [comments]
+
+[1re1wdu] source=reddit subreddit=Renters
+Title: Hate apartment hunting? Share your experience (2–3 min survey) (USA)
+Body: submitted by /u/housing_research2026 to r/Renters [link] [comments]
+
+[1re21z0] source=reddit subreddit=StudioApartments
+Title: Hate apartment hunting? Share your experience (2–3 min survey)
+Body: submitted by /u/housing_research2026 to r/StudioApartments [link] [comments]
+
+[1paiuq3] source=reddit subreddit=Riyadh
+Title: any recommendations for apartment hunting?
+Body: hi all, moving to riyadh soon and i’m looking for an apartment to share with my roommate, im curious as to if there are any apps/companies that can help find suitable apartments? thanks submitted by /u/Urnanishairy2 to r/Riyadh [link] [comments]
+
+[1qooaqw] source=reddit subreddit=sideprojects
+Title: Got frustrated while apartment hunting and built and thing for it.
+Body: Built Flatlist to solve my own apartment hunting frustration I was juggling 30+ browser tabs, losing track of which listings I'd already seen, and spending hours comparing places manually. So I built a web app + Chrome extension that: - Saves listings from any website with one click - Uses AI to automatically extract details (price, size, noise level, natural light, etc.) - Lets you search using natural language ("sunny 2BR near metro") - Supports collaboration (share with roommates/partners) Would love some feedback! flatlist.app submitted by /u/No-Chocolate3964 to r/sideprojects [link] [comments]
+
+[1o20kzl] source=reddit subreddit=AusPropertyChat
+Title: Hi! i’m shifting from Adelaide to Melbourne in November. My office is in southbank and i’m looking for an apartment nearby (as i don’t have a car so something close enough to walk or take public transport). Any recommendations for which areas i should look for my apartment hunting??
+Body: submitted by /u/CatCivil4013 to r/AusPropertyChat [link] [comments]
+
+[1lgmevr] source=reddit subreddit=sanantonio
+Title: Apartment hunting, anyone have recommendations of fun areas/nice apts?
+Body: I (26F) am looking to move me and my 2 dogs closer to the downtown/pearl/tobin hill/maybe Alamo heights area. Currently I’m by the Westover hills area but everything for the most part needs a bit of a drive. What I’m looking for: - Good walking score - lots of local businesses/things to do - bonus points if you feel relatively safe walking alone (or with a dog) - budget: if we can keep it to Does anyone have any recommendations? (Also, if y’all don’t think these areas listed are the ideal place for what I’m looking for, mention it and let’s talk about it!). I’m pretty open to anything, I’m just making sure I know all my options before making any decisions! submitted by /u/stilantares to r/sanantonio [link] [comments]
+
+[xubocw] source=reddit subreddit=electricvehicles
+Title: Think apartment-hunting is frustrating? Try doing it with an electric car.
+Body: submitted by /u/seat51c to r/electricvehicles [link] [comments]
+
+[1p1coq7] source=reddit subreddit=NoStupidQuestions
+Title: Anyone have a good system for tracking calls on their cellphone? I started apartment hunting as a side hustle but I hate the amount of manual follow up I need to do and keep track of. Anyone have a good system?
+Body: New user pass phrase: I know this is NoStupidQuestions, not NoRulesQuestions. submitted by /u/PhoneAcademic6311 to r/NoStupidQuestions [link] [comments]
+
+[14ip1gi] source=reddit subreddit=evansville
+Title: Apartment hunting, any recommendations? North Park seems alright.
+Body: Looking to get into an apartment for a year or two. It's just myself, but I'd like to have a 2 bed/1bath 950sqft minimum, for the space. I don't have pets. I'd like the location to be decent, and I'd like to pay no more than $1,200 a month, all in. I generally work on the west side and have class by the technical training center on Lynch, so somewhere in that general area. Would highly prefer washer/dryer hookups. I applied at Abbey Court and was approved, but after looking around a bit I'm having doubts. My sister and her boyfriend live there and they recommended it (which is why I applied) but location wise it's not very close to work or school. North Park looks like its a good choice, but reviews seem polarizing. On paper its my #1 choice, but worried about maintenance. Seems like they drag their feet? I've heard good things from coworkers about Mission Viejo apartments, but when i called a couple of weeks ago, they said they're about to raise prices for "apartment season" which seems BS. submitted by /u/gerbetta33 to r/evansville [link] [comments]
+
+[1jvxl9a] source=reddit subreddit=HendersonNV
+Title: Apartment hunting recommendations?
+Body: I’m planning on moving to the Henderson area in a month or two and i’m looking for a 1bd 1ba apartment for around $1600 a month or less.. all of the reviews on apartments in the area seem very hit or miss and vary drastically. Does anyone have a good recommendation? submitted by /u/connorfitz88 to r/HendersonNV [link] [comments]
+
+[k8du27] source=reddit subreddit=boston
+Title: Alternatives to homelessness? Struggle bus apartment hunting in expensive state; seeking advice.
+Body: I know that this is a long shot, but, I'm out of options and I hope to get some useful advice from you lovely users. I've been living in the same Quincy apartment with my mom as co-renter for 7 years. My 5 year old daughter is also with me. Rent was $1300 total. My mom suddenly decided to move out which leaves me with to pay the total. Now, I have to complete the impossible task of finding somewhere to live that's under $1000 (because I'm on the financial struggle bus) and won't take me too far from my job, which is , of course a Boston area hospital. I've spoken to my landlord and she's willing to give me a deal until April ($1100, this is still stretching it). I've been scouring apartment sites and the best I can afford is a single room with college kids. And looking at "affordable housing," either have a waiting list or aren't affordable at all. I've spoken to my local housing authority and they're completely useless when they do decide to communicate with me. According to them, I basically need to be homeless or have an eviction notice before they can help me. That shouldn't be too long. What are my options? Is there any alternative to homelessness? submitted by /u/billiepw to r/boston [link] [comments]
+
+[1ktet4w] source=reddit subreddit=ChristUniversity
+Title: Apartment hunting near christ central campus- any leads or broker recommendations???
+Body: I am desperately tryna find an apartment/flat near central campus before i lose my mind. if you’ve got any leads (listings, available flats, decent brokers, seniors moving out, whatever ) hmu. looking for a 2bhk/3bhk, ideally walkable to campus. big fucking yes to natural light and good ventilation, apartments listed on rental apps near sg palya, scared the shit outta me ngl. pls drop recs or DM me submitted by /u/Substantial_Age_4548 to r/ChristUniversity [link] [comments]
+
+[1likmrn] source=reddit subreddit=dfw
+Title: Apartment hunting in DFW recommendations???
+Body: I currently live downtown Fort Worth (cultural district) and I'm looking into moving but I don't want to give up living so close to things to do. I live in a pretty walkable area currently to coffee shops restaurants/bars. Is there anywhere else (other cites/suburbs) in the DFW area that also has that vibe? I don't want to move to far into Dallas as I work downtown Fort Worth. submitted by /u/Afraid-Kangaroo6685 to r/dfw [link] [comments]
+
+[1khoa9d] source=reddit subreddit=ChicagoSuburbs
+Title: Apartment Hunting Aurora IL, Moving Now, Recommendations?
+Body: Hi, need recommendations on apartments around Aurora IL, looking at 1Bed apartments. Safer communities, probably to the west of city. Any recommendations or suggestions which neighborhoods to avoid die to noise or security issues? Also any particular comments on Renew Aurora Apartments? submitted by /u/Not-Social- to r/ChicagoSuburbs [link] [comments]
+
+[1iv40c8] source=reddit subreddit=longisland
+Title: Apartment Hunting. Recommendations Requested for ~3k 2 bedroom price range.
+Body: My Fiancé and I are looking to move to a 2 bedroom apartment for about 3k a month in the Suffolk / west Suffolk area. Does anyone have any recommendations or “Do not live here” apartments. Thank you :) submitted by /u/Logano1553 to r/longisland [link] [comments]
+
+[1khjp2g] source=reddit subreddit=AskChicago
+Title: Apartment Hunting: Aurora IL Move In Now. Any Recommendations? suggestions?
+Body: Hi, need recommendations on apartments around Aurora IL, looking at 1Bed apartments. Safer communities, probably to the west of city. Any recommendations or suggestions which neighborhoods to avoid die to noise or security issues? Also any particular comments on Renew Aurora Apartments? submitted by /u/Not-Social- to r/AskChicago [link] [comments]
+
+[du4aqz] source=reddit subreddit=ChoosingBeggars
+Title: I'm apartment-hunting and I hate it. Landlord wants tenant to clean tweaker den in exchange for slightly discounted rent.
+Body: submitted by /u/JamOnTheOne to r/ChoosingBeggars [link] [comments]
+
+[1i2nuta] source=reddit subreddit=AskAGerman
+Title: Seeking recommendations - Place to work or apartment hunting in Nuremberg in a day
+Body: I am traveling to Nuremberg next week for just 1 day for apartment viewing. Yes, just one apartment view and spending 100€ and 6 hours of time. It's fine though. I wanted to ask - Can you recommend any place where I can work for 3-4 hours? Like a cafe or something. Don't want to take a day off for this so taking laptop with me. If 1 is not so possible then does it make sense to visit realestate giants like WBG or Vonovia? In Magdeburg where I live we have MWG and a few other who show you prospects when you go there. Not sure if it's possible in Nuremberg. submitted by /u/Full_Journalist_2505 to r/AskAGerman [link] [comments]
+
+[11tbs5e] source=reddit subreddit=DentalSchool
+Title: What are some things you wish you knew before starting dental school? (Apartment hunting, sim lab, didactic classes, making friends , anything)
+Body: submitted by /u/Good_Bar_1412 to r/DentalSchool [link] [comments]
+
+[1e4dcw3] source=reddit subreddit=Birmingham
+Title: Apartment Hunting in Bham area, any recommendations?
+Body: Hello! First time poster here, so I apologize in advance for any formatting issues or anything like that. I am moving from Ohio to Alabama, and I am having trouble finding decent places to live that won’t break the bank. My budget is around $900-$1100, not including utilities, and I would definitely prefer an in-unit washer/dryer, or at least on-site laundry. I’ve seen so many horror stories about bad apartment complexes, so I wanted to see if anyone had any good ones they could recommend! Looking pretty much anywhere in the bham area, other amenities don’t matter that much to me, except maybe central AC lol! Thanks in advance!!! Also, let me know your favorite local spots or your favorite things about living here! (: submitted by /u/Wide_Pangolin8112 to r/Birmingham [link] [comments]
+
+[rd04ah] source=reddit subreddit=bayarea
+Title: Apartment hunting recommendations
+Body: I’m moving to California in 2 months! I currently live in a large vintage apartment in Chicago which was built in 1920. I’m looking for an apartment with character/history in the Bay Area. People are telling me I’m expecting too much because all I’ll find is overpriced places for very small square footage and I need to lower my expectations. I agree I’ll need to lower my expectations but I still want to find a place that isn’t too modern, that has a lot of sunlight and the neighborhood culture is great. Do you have any advice? submitted by /u/DartyGal503 to r/bayarea [link] [comments]
+
+[1htdgnp] source=reddit subreddit=SBU
+Title: Alternatives to Facebook apartment hunting
+Body: I’m trying to find something off campus for my partner and myself. Facebook is alright but I want to expand my horizons lmfao. Has anyone had any luck looking places other than Facebook? submitted by /u/littlemissthrowra to r/SBU [link] [comments]
+
+[1ehfhll] source=reddit subreddit=selfie
+Title: the face of a [23F] apartment hunting, wish me luck that I find a cute place🤞
+Body: submitted by /u/Independent-Stop-919 to r/selfie [link] [comments]
+
+Identify the genuinely recurring problems as instructed and return the JSON array.

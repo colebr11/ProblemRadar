@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Unnoticed Recurring Subscriptions and Forgotten Free Trials Draining Money",
+    "description": "Consumers accumulate numerous recurring digital subscriptions, streaming services, and free trials that automatically convert to paid plans. Because charges occur quietly in the background without explicit renewal confirmation, users lose hundreds to thousands of dollars annually on services they no longer use or forgot existed.",
+    "post_count": 6,
+    "representative_post_ids": ["1ohez7k", "1nt2qs4", "1p6178y", "1j58b0q", "1jkv74k", "1uwyaui"],
+    "who_experiences": "Everyday consumers, digital nomads, and remote workers who sign up for digital services, free trials, and entertainment subscriptions.",
+    "existing_workarounds": "Manually sifting through months of bank statements, setting calendar reminders, using dedicated subscription tracking apps, or using virtual credit cards.",
+    "pain_level": 8,
+    "opportunity_score": 88,
+    "score_reasoning": "High financial pain and widespread recurrence across users who regularly lose hundreds of dollars to forgotten renewals, creating a strong willingness to adopt automated tracking tools."
+  },
+  {
+    "title": "Vehicle Tracking Services Remotely Disabling Car Engines Over Unpaid Subscriptions",
+    "description": "Vehicle owners who install aftermarket GPS tracking services face aggressive enforcement where service providers remotely shut down the vehicle's starter or engine when annual subscription renewals are missed or delayed. This leaves drivers stranded during emergencies or normal travel without warning, blurring the line between security services and extortion.",
+    "post_count": 2,
+    "representative_post_ids": ["1vlyide", "1vlyb6c"],
+    "who_experiences": "Car owners who install third-party vehicle tracking and security hardware.",
+    "existing_workarounds": "Calling mechanics to inspect the vehicle, paying disputed renewal fees under duress to re-enable the vehicle, or reporting the provider to consumer regulatory bodies.",
+    "pain_level": 9,
+    "opportunity_score": 65,
+    "score_reasoning": "Extremely high safety and emotional pain, but limited market size as a standalone software opportunity since it involves hardware-level vehicle disabling and legal/regulatory disputes."
+  },
+  {
+    "title": "User Resistance to Subscription Fatigue, Data Harvesting, and Walled-Garden Software",
+    "description": "Users are increasingly frustrated by software vendors replacing perpetual one-time licenses with mandatory recurring subscriptions while locking user data behind paywalls or embedding invasive ad tracking. This trend forces users to search for privacy-first, open-source, or self-hosted alternatives that respect data ownership.",
+    "post_count": 5,
+    "representative_post_ids": ["1tjp5ou", "1ux4zl5", "1rbkx5e", "1um8rw1", "1ubpj5g"],
+    "who_experiences": "Privacy-conscious consumers, self-hosters, indie developers, and tech enthusiasts.",
+    "existing_workarounds": "Switching to open-source software (FOSS), hosting local servers (e.g., Jellyfin instead of Plex), or purchasing one-time lifetime license software.",
+    "pain_level": 7,
+    "opportunity_score": 82,
+    "score_reasoning": "Growing market sentiment against subscription fatigue creates strong demand for privacy-focused, one-time payment software alternatives across multiple categories."
+  }
+]
