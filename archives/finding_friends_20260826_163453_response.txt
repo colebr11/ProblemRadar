@@ -1,0 +1,60 @@
+[
+  {
+    "title": "Chronic Ghosting and Flakiness on Online Friend-Making Platforms",
+    "description": "People seeking genuine friendships via dedicated apps and subreddits frequently experience low-effort conversations, sudden abandonment, and persistent ghosting after initial chats or hangouts.",
+    "post_count": 16,
+    "representative_post_ids": [
+      "1vno6jv",
+      "1pzk42g",
+      "18lgdsd",
+      "1sjqju7",
+      "oaebmy",
+      "c2sl0g",
+      "dlj6er",
+      "1tphqs3",
+      "1lwue62",
+      "1nbeaak",
+      "1ljj13r",
+      "1ljiygl",
+      "1agoq8a",
+      "1bzq5oi",
+      "1fxce9z",
+      "ykfxg4"
+    ],
+    "who_experiences": "Young adults, introverts, and adults attempting to build new social connections through digital apps, subreddits, or local online boards.",
+    "existing_workarounds": "Adding explicit 'no ghosting' warnings in post titles, quickly moving chats to Discord, repeatedly re-posting introduction threads, or trying multiple swipe-based friend apps.",
+    "pain_level": 8,
+    "opportunity_score": 85,
+    "score_reasoning": "Existing friend-finding platforms mirror dating app mechanics, encouraging low commitment and disposable interactions. A software platform incorporating accountability mechanisms, structured activity-based hangouts, or mutual effort verification could unlock high user retention and satisfaction."
+  },
+  {
+    "title": "Neurodivergent Adults Struggling to Find Authentic, Low-Masking Friendships",
+    "description": "Autistic and neurodivergent individuals face intense social rejection, small-talk fatigue, and exhaustion from masking when attempting to build friendships through conventional social environments and apps.",
+    "post_count": 3,
+    "representative_post_ids": [
+      "1t48azx",
+      "1lk01lc",
+      "18gtbbc"
+    ],
+    "who_experiences": "Autistic, ADHD, and neurodivergent adults or teenagers seeking genuine connections without needing to conform to neurotypical social norms.",
+    "existing_workarounds": "Joining specialized Discord servers or Reddit subreddits, relying on family members to hunt for local clubs, or enduring social burnout trying to fit into standard venues like bars and pubs.",
+    "pain_level": 9,
+    "opportunity_score": 72,
+    "score_reasoning": "Neurodivergent individuals experience deep social isolation because mainstream apps prioritize quick small talk and superficial profiles. A specialized social platform focused on deep-dive interest matching, explicit communication preferences, and low-masking interaction design addresses a passionate, underserved user base."
+  },
+  {
+    "title": "Social Integration Challenges for Expats and International Students",
+    "description": "Foreign residents and international students struggle to form local social circles due to language barriers, unfamiliar local norms regarding small talk, and insular existing social groups.",
+    "post_count": 3,
+    "representative_post_ids": [
+      "1ubxoxw",
+      "1gcklen",
+      "9baeh2"
+    ],
+    "who_experiences": "Expats, international university students, and immigrants relocating to new countries or smaller foreign towns.",
+    "existing_workarounds": "Using generic local Facebook groups, attending public places like cafes or gyms hoping for organic interactions, and seeking out existing foreigner expat pockets.",
+    "pain_level": 8,
+    "opportunity_score": 70,
+    "score_reasoning": "Relocating abroad often creates severe loneliness due to cultural and linguistic barriers that general social apps fail to bridge. A targeted platform facilitating language-accessible group meetups and buddy pairings between locals and newcomers presents a solid solution."
+  }
+]
