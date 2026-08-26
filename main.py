@@ -24,6 +24,7 @@ auditable:
     python main.py run "topic" --subreddit=NYCapartments
     python main.py run "topic" --json
 """
+from __future__ import annotations
 
 import sys
 

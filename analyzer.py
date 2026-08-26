@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Core AI-processing logic for Problem Radar.
 
@@ -24,6 +25,7 @@ from typing import Optional
 from models import Post, Problem
 
 DEFAULT_MODEL = "gemini-3.6-flash"
+DEFAULT_PROBLEM_KEYWORDS = ["wish", "track", "annoying", "alternative", "recommend", "frustrating", "hate"]
 
 SYSTEM_PROMPT = """You are an analyst for "Problem Radar", a tool that reads online \
 discussion posts (Reddit threads, app reviews, forum posts) and finds RECURRING \
@@ -50,7 +52,7 @@ treat them as different problems rather than merging them.
 For each genuinely recurring problem you find, produce an object with these exact \
 fields:
   - "title": short, specific problem title (not a generic category name)
-  - "description": 2-4 sentences clearly describing the problem
+  - "description": 1-2 sentences clearly describing the problem
   - "post_count": integer, number of posts in the input describing this problem
   - "representative_post_ids": list of the post ids (e.g. ["p1", "p3"]) that best \
 represent this problem — include ALL posts you assigned to this cluster
@@ -132,6 +134,44 @@ def parse_response(raw_text: str) -> list[Problem]:
     return problems
 
 
+def expand_topic_keywords_via_api(topic: str, api_key: str | None = None) -> list[str]:
+    import os
+    from google import genai
+    from google.genai import types
+
+    resolved_api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not resolved_api_key:
+        return DEFAULT_PROBLEM_KEYWORDS
+
+    try:
+        client = genai.Client(api_key=resolved_api_key)
+
+        # Enforce short single words or 2-word pain signals (no full phrases)
+        prompt = (
+            f"Give me 3 single words or short 2-word terms real people use when expressing "
+            f"frustration, workflow friction, or unmet software needs regarding the topic: '{topic}'.\n"
+            f"Examples for 'cooking': [\"recipes\", \"planner\", \"shopping\"]\n"
+            f"Return ONLY a JSON array of 3 short strings. Do NOT return full app search phrases."
+        )
+
+        response = client.models.generate_content(
+            model=DEFAULT_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.2,
+                automatic_function_calling = types.AutomaticFunctionCallingConfig(disable=True)
+            )
+        )
+        keywords = json.loads(response.text)
+        # Sanitizer: strip long phrases to protect Reddit search
+        sanitized = [k.strip() for k in keywords if len(k.split()) <= 2]
+        return sanitized if sanitized else DEFAULT_PROBLEM_KEYWORDS
+    except Exception as e:
+        print(f"Error generating keywords: {e}")
+        return DEFAULT_PROBLEM_KEYWORDS
+
+
 def analyze_posts_via_api_raw(
     posts: list[Post],
     model: str = DEFAULT_MODEL,
@@ -172,6 +212,7 @@ def analyze_posts_via_api_raw(
                 system_instruction=SYSTEM_PROMPT,
                 response_mime_type="application/json",
                 max_output_tokens=max_tokens,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
             ),
         )
         raw_text = response.text

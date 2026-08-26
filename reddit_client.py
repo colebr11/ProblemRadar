@@ -19,6 +19,7 @@ This module's only public function, search_reddit_posts(), returns
 list[Post] — the exact same type mock_data.MOCK_POSTS provides. Nothing in
 analyzer.py needs to change to use this instead.
 """
+from __future__ import annotations
 
 import html
 import re
@@ -28,6 +29,7 @@ import urllib.request
 from urllib.parse import quote
 from xml.etree import ElementTree
 
+from analyzer import expand_topic_keywords_via_api, DEFAULT_PROBLEM_KEYWORDS
 from models import Post
 
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
@@ -208,18 +210,6 @@ def search_reddit_posts(
     return posts[:limit]
 
 
-# Generic keywords people use when expressing a problem, unmet need, or bad workaround.
-DEFAULT_PROBLEM_KEYWORDS = [
-    "wish",
-    "track",
-    "annoying",
-    "alternative",
-    "recommend",
-    "frustrating",
-    "hate",
-]
-
-
 def build_problem_query(topic: str, keywords: list[str] | None = None) -> str:
     """Build a single high-intent Boolean query combining title matching with problem keywords."""
     kw_list = keywords or DEFAULT_PROBLEM_KEYWORDS
@@ -241,6 +231,11 @@ def search_reddit_for_problem_signals(
     frustration/need keywords into a single Boolean OR query, avoiding
     multiple HTTP requests and eliminating rate limit (HTTP 429) risks.
     """
+    if keywords is None:
+        print(f"Generating dynamic problem signals for topic: {topic!r}")
+        keywords = expand_topic_keywords_via_api(topic)
+        print(f"Dynamic signals generated: {keywords}")
+
     query = build_problem_query(topic, keywords=keywords)
     posts = search_reddit_posts(
         query,
@@ -255,7 +250,11 @@ def search_reddit_for_problem_signals(
     # narrow and starve the result set. If the signal query came back thin,
     # fall back to a broader plain-text search on the topic alone so callers
     # don't end up with an empty (or near-empty) dataset.
-    if len(topic.split()) == 1 and len(posts) < 15:
+    if len(topic.strip().split()) == 1 and len(posts) < 15:
+        print(
+            f"Strict signal search came back thin ({len(posts)} posts) for "
+            f"single-word topic {topic!r}; falling back to a broad search."
+        )
         posts = search_reddit_posts(
             topic,
             limit=limit,

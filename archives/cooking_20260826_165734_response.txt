@@ -1,0 +1,37 @@
+[
+  {
+    "title": "Meal prep and daily cooking burnout",
+    "description": "Home cooks and parents experience severe mental fatigue and exhaustion from the heavy time commitment, planning load, and relentless cleanup required by weekly meal prepping and daily cooking.",
+    "post_count": 3,
+    "representative_post_ids": [
+      "1r8t7er",
+      "1me4xlr",
+      "1pg3ifc"
+    ],
+    "who_experiences": "Busy adults, parents, and health-conscious individuals who batch-cook or cook daily meals for their household.",
+    "existing_workarounds": "Switching to minimal/zero-cook meal preps, ordering takeout, batching single base components instead of full meals, or relying on pre-packaged frozen foods.",
+    "pain_level": 8,
+    "opportunity_score": 85,
+    "score_reasoning": "Meal prep burnout frequently causes people to abandon healthy eating and home cooking in favor of expensive takeout. Software that optimizes meal planning for minimal dish usage, micro-prep scheduling, and efficient component assembly directly addresses this core motivation drain."
+  },
+  {
+    "title": "Difficulty finding appropriate recipe ingredient substitutions",
+    "description": "Cooks frequently struggle to identify accurate ingredient substitutes when missing key items, adapting recipes for severe dietary allergies, or avoiding specific ingredients like alcohol.",
+    "post_count": 8,
+    "representative_post_ids": [
+      "1vbwzkd",
+      "1ug0nl5",
+      "1udfxf3",
+      "1nxyqrp",
+      "n7o5i8",
+      "7g4zqd",
+      "n1afb9",
+      "n0n1ci"
+    ],
+    "who_experiences": "Beginner cooks, individuals with food allergies/sensitivities, and people cooking with limited pantries or non-alcoholic requirements.",
+    "existing_workarounds": "Searching web forums, consulting static cheat sheets/infographics, or guessing replacements and risking ruined dishes.",
+    "pain_level": 6,
+    "opportunity_score": 78,
+    "score_reasoning": "Static charts exist but lack context on how flavor profiles, acidity, and chemical properties change during cooking. A smart substitution engine integrated into recipe apps could instantly recommend context-aware alternatives tailored to user constraints."
+  }
+]

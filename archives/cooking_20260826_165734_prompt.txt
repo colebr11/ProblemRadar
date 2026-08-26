@@ -1,0 +1,214 @@
+You are an analyst for "Problem Radar", a tool that reads online discussion posts (Reddit threads, app reviews, forum posts) and finds RECURRING problems, frustrations, unmet needs, or inefficient workarounds that could plausibly be solved with a piece of software.
+
+You will be given a numbered list of posts, each with a short id like [p1].
+
+Your job:
+1. Read all posts and identify clusters of posts that describe the SAME underlying problem — not just posts that share a topic, subreddit, or a few keywords.
+2. Do NOT force posts into a shared category just because they are thematically adjacent. Two posts about "money" or "cooking" are not automatically the same problem. Only group posts if a reasonable person would say "these people are describing the same frustration and would want the same solution."
+3. A single post describing a one-off, unrelated complaint should NOT be included in any cluster and should NOT be reported as a problem. Only report problems that recur across MULTIPLE posts (2 or more) unless the instructions say otherwise.
+4. It is completely fine, and expected, for some posts to not belong to any recurring problem. Do not invent a category just to use every post.
+5. Be conservative: if you are unsure whether two posts describe the same problem, treat them as different problems rather than merging them.
+
+For each genuinely recurring problem you find, produce an object with these exact fields:
+  - "title": short, specific problem title (not a generic category name)
+  - "description": 1-2 sentences clearly describing the problem
+  - "post_count": integer, number of posts in the input describing this problem
+  - "representative_post_ids": list of the post ids (e.g. ["p1", "p3"]) that best represent this problem — include ALL posts you assigned to this cluster
+  - "who_experiences": short description of who experiences this problem
+  - "existing_workarounds": what workarounds people currently use, based on the posts
+  - "pain_level": integer 1-10, how painful/frustrating this problem seems based on the language used in the posts
+  - "opportunity_score": integer 1-100, your estimate of how promising this is as a software opportunity, considering recurrence, pain level, and whether existing workarounds are clearly inadequate
+  - "score_reasoning": 1-3 sentences explaining the opportunity_score
+
+Respond with ONLY a JSON array of these objects. No markdown code fences, no preamble, no commentary, no trailing text. If you find zero recurring problems, respond with an empty JSON array: []
+
+
+---
+
+Here are 46 posts to analyze:
+
+[1vqwyri] source=reddit subreddit=Advice
+Title: My parents eat all the food I meal prep, ban me from cooking after 7:45 PM, and take 60% of my paycheck.
+Body: I (21M) work a physically demanding job and come home exhausted. My mom goes to sleep early and banned cooking past 7:45 PM because of food smells. To adapt, I started meal-prepping on Sundays. However, my parents eat my prepped meals by Tuesday. When confronted, they claim food stored over two days is "unhealthy." I asked my mom to save a portion of her lunch for me instead, but she never does. Buying takeout daily is draining my bank account - especially since I give them 60% of my paycheck to cover bills while my dad has been unemployed since January. To make matters worse, they constantly criticize me for wasting money on fast food, even though they leave me no other choice. I’m paying their living expenses while they eat the food I prepare and restrict my cooking. How can I handle this situation or set firm boundaries while still living under their roof? submitted by /u/HeavyBreak6362 to r/Advice [link] [comments]
+
+[1s3gitn] source=reddit subreddit=MealPrepSunday
+Title: Meal prep ft. Not cooking or doing dishes
+Body: Trying to cook all my meals lead to lots of not following through so I have switched to easy prep. Each serving is 475cal 28g protein. I included my receipt at the end for the cost of being lazy, Price is in CAD and there's still 3/4 of the snap peas left for snacking. Could save a bit by subbing out the mini guacs for a regular avocado but I'd just end up not using them and forget about them til they go bad. Not included is my breakfast prep that's also from Costco that consists of the Vega protein shakes, and some fruit. Once I've slimmed down to the goal weight I'll probably add another chicken or make it into fewer servings to increase the calories to a weight maintenance level submitted by /u/Dartser to r/MealPrepSunday [link] [comments]
+
+[1gbbpav] source=reddit subreddit=shittyfoodporn
+Title: Whilst cooking “fajitas” I realised I didn’t buy wraps. Substituted the wraps with wine rolled slices of bread.
+Body: Ingredients: one red onion, one red bell pepper, one chicken breast, a small handful of chopped chorizo, old elpaso bbq spice mix, grated cheddar cheese, sandwiched in between two “wine rolled” (as in I used a bottle of wine to roll and flatten) pieces of bread. submitted by /u/The_best_one_-_ to r/shittyfoodporn [link] [comments]
+
+[tvnyc8] source=reddit subreddit=NoStupidQuestions
+Title: After cooking bacon, you have a lot of excess grease left in the pan. Can you then reuse that grease again as a substitute to using cooking oil, while simultaneously adding bacon flavor to that food?
+Body: submitted by /u/lucas23bb to r/NoStupidQuestions [link] [comments]
+
+[1aea7iv] source=reddit subreddit=StupidFood
+Title: My roommate tried to make meal prep and the whole house is smoking. Idk what he is cooking , please help .
+Body: Plese help , the beef look like it is still alive and is having a period . submitted by /u/Snoo-32927 to r/StupidFood [link] [comments]
+
+[d3fvqj] source=reddit subreddit=EatCheapAndHealthy
+Title: Just got 20 frozen chicken breasts from Costco, have no cooking skills, what's the best way to meal prep a bunch of these for the week?
+Body: submitted by /u/coverslide to r/EatCheapAndHealthy [link] [comments]
+
+[vnwur4] source=reddit subreddit=ChoosingBeggars
+Title: “Cooking and meal prep will be much cheaper than the $$$ of my work”
+Body: submitted by /u/GET-WEIRD to r/ChoosingBeggars [link] [comments]
+
+[13oq2dm] source=reddit subreddit=Costco
+Title: Wife is due, technically overdue. Costco helped us stock up for meal prep. Minimal cooking the next 3-4 weeks.
+Body: submitted by /u/DreamsAndSchemes to r/Costco [link] [comments]
+
+[1s674jo] source=reddit subreddit=mealprep
+Title: Not a fan of daily cooking, but I love meal prep 👩‍🍳
+Body: Hi guys, first-time poster here 👋 I’m a student n currently in the middle of exam week. Time is tight so I just spent 4 hrs today prepping for the next week ahead. The recipes I pulled from internet/cookbook: - Moroccan stuffed eggplant from "Recipetineats" - Orzo pesto with sausage from "Cookingwithcarbs" - Dongpo Pork from a book written by Handa Cheng - Kimbap from my memory:D I'm not a fan of daily cooking but I love the dopamine hit coming after a prep session. Since I only eat twice a day, this batch should carry me till next Fri/sat 🤞 That's it for my first post! Hope you all have a great weekend 🤗 submitted by /u/Sudden_Strategy_1887 to r/mealprep [link] [comments]
+
+[1t1gkdm] source=reddit subreddit=CostcoCanada
+Title: I’m the OP from today’s top post. Chef with 10+ years of experience. AMA about Costco products, cooking, meal prep, anything else. Ask me anything!
+Body: Didn't expect today to happen. Happy to answer anything about the product, about cooking with it, about my Costco staples, whatever you want to know. I'll be here from 6am Pacific answering everything! 🧈 submitted by /u/Silviafmunoz to r/CostcoCanada [link] [comments]
+
+[16box44] source=reddit subreddit=unpopularopinion
+Title: Eating Healthy is not Expensive, People just lack Meal Prep/Cooking Skills.
+Body: Beans, Lentils, Peas, Split Peas, Quinoa, and produce on sale at discount stores are all actually very cheap. A 25lb bag of black beans can be as cheap as $30-$40. Most of these types of grains and legumes you can get for close to a $1 a pound if you get them on sale. Same goes with produce on sale. If you buy in season - carrots, onions, garlic, etc - they're all pretty cheap. Even meats, like chicken, you can get a fresh chicken on sale for $6-$7 a chicken. The problem is not the price of food blocking people out from eating healthy, it is that they don't know how to properly cook, meal prep, and utilize their food. Some of this can be attributed to time - but you can cook this stuff with virtually no effort if you know how to. It's not like you're in the kitchen for endless hours actually doing stuff. 5 mins of prep time, an hour's worth of cooking, 5 mins of clean afterwards, maybe another 5 to store food. You can make a week's worth of food putting in less than an hour's worth of work stretched out over a Sunday afternoon. submitted by /u/Fausto_Alarcon to r/unpopularopinion [link] [comments]
+
+[1vbwzkd] source=reddit subreddit=Cooking
+Title: Substituting Non-Alcoholic Wine in Cooking?
+Body: I have a bunch of recipes that involve wine that I want to try, but 1 of my regular guests can't have alcohol due to health reasons. How viable is non-alcoholic wine as alternative in terms of cooking? I'm looking to keep the flavor as accurate to the recipe's intentions as possible. A stewed venison with red wine, a red wine sauce for eggs, and a fish cooked in white wine are the recipes I'm most immediately concerned with, but general usage guidelines would be appreciated. EDIT: From what I understand, while cooking alcoholic beverages will cook off some of the alcohol, it won't get rid of all of it, and since it's a health concern, I want to be sure not to have any alcohol present at all. submitted by /u/The_RPGenius to r/Cooking [link] [comments]
+
+[kbk3pp] source=reddit subreddit=MealPrepSunday
+Title: First time meal prepping, I spent the whole day cooking, but I got 44 meals :)
+Body: submitted by /u/VictorSanslec to r/MealPrepSunday [link] [comments]
+
+[1sh4b5q] source=reddit subreddit=Ultrakill
+Title: Am I cooking with these ideas for alternate arms? (if any of the numbers feel wrong substitute them in your head, i have no idea what the numbers should be)
+Body: submitted by /u/Young_Person_42 to r/Ultrakill [link] [comments]
+
+[n7o5i8] source=reddit subreddit=foodhacks
+Title: Handy guide to cooking and baking ingredient substitutions
+Body: submitted by /u/angelsgirl2002 to r/foodhacks [link] [comments]
+
+[1ojbjql] source=reddit subreddit=Cooking
+Title: 'Base prepping'- a hybrid between meal prepping and daily cooking- does anyone else do this?
+Body: As someone who loves to cook but is frequently too tired/busy to make a new dish from scratch almost every weeknight, I've stumbled upon a strategy over the past year or two that I call 'base prepping' (although it's entirely possible there's another term for this I just don't know about). Instead of prepping several day's worth of a single, complete meal, I'll cook one large batch portion of a versatile base including carbs and vegetables that I can use to improvise different meals on throughout the week. For instance, on Sunday I cooked a large portion of Mexican-inspired rice and beans, spruced up with tomatoes, onion, peppers, and corn, mixed in along with a bunch of spices- at least 4-5 meals' worth. That same night, I cooked some pork to go with it, but only about 2 meals' worth- once that's used up, I can use the rest of the base with chicken, chorizo, carne asada, or any other complimentary protein, and get some good variety of a relatively simple initial step. Another common base I do is a Mediterranean style orzo or bulgur with sauteed vegetables and tomatoes mixed in that can be riffed on with either Greek or Middle Eastern dishes. An East or Southeast Asian vegetable stir fry with rice also has a ton of versatility with different proteins. Overall, I find that only having to cook meat at dinnertime lifts a huge portion of the stress and tedium that comes with chopping vegetables, boiling rice or pasta, etc., especially if you season/marinate in advance and have it ready to toss in the pan. Having a different protein every 1-2 days is also enough to relieve the boredom I get with standard meal prepping. I'm honestly just curious, though- does anyone else use a similar strategy? What are your tips for striking a balance between boring meal prep and new dishes every night? submitted by /u/Pyrrhus65 to r/Cooking [link] [comments]
+
+[1ug0nl5] source=reddit subreddit=Cooking
+Title: Cooking with added difficulties - historical and allergy edition. Substitution question.
+Body: In a week I will cook for a few people, one of them having a LOT of allergies and honestly, I am struggling. The person in question can't have dairy, gluten and ANY allium-related plants. I can work with the no-gluten thing and leaving out dairy isn't a problem either. But the real problem is, that they can't have onions, garlic, spring onions, wild garlic, not even leeks... Added difficulty is, that this will take place at a medieval market, so we can't do any plants that came to europe after the viking age. So, no tomatoes, peppers, potatoes and all that nice stuff we are used to have in abundance... So far my idea is a buckwheat stew with mushrooms and either mutton or beef and roasted root vegetables, or a cabbage stew with either mutton, beef or smoked pork. Does anyone have an idea on how to substitute allium plants? Spices are a bit dicey as well, of course, as historically there obviously were spices available, but most spices - apart from native herbs - were suuuuper expensive, back in the medieval times. How the f... do I add any taste to the food, apart from roasting the shit out of the ingredients and hoping for the best...? Important information, before someone starts hating on that person for being difficult: No one - apart from myself - is making me follow their dietary restrictions. I don't HAVE to cook for this person, they would gladly provide their own food, but as they have done a lot for me, I want to make a dish they can enjoy as well. They are NOT imposing their dietary restrictions on anyone and they do very much NOT feel entitled to me cooking a meal based on their restrictions! submitted by /u/selkiesart to r/Cooking [link] [comments]
+
+[1rdgk8e] source=reddit subreddit=TwentiesIndia
+Title: Learning cooking for meal prep majority are high protein meals
+Body: M24 here I am cooking for past 2 years. Mutton curry muradabadi Daal chat Pasta Salad with chicken Chicken curry Spaghetti and chicken Chicken burger Shawarma kulcha Avocado sandwitch with chocolate chai Kashmere laal paneer with masala paratha 10.Ross egg with mutton nihari Maharashtrian curry & Dal khichdi Chicken changezi 13.pasta and scrambled egg 14.egg curry Egg sandwitch Palak paneer White paneer makhani Chicken burrito Paneer besan chilla 19.oat noodles woth chicken submitted by /u/Accurate-Ad-9050 to r/TwentiesIndia [link] [comments]
+
+[15zmd4p] source=reddit subreddit=MealPrepSunday
+Title: First time meal prepping. I struggle with ADHD and depression so I’m really proud of myself. My mom helped since I’m still learning about cooking proteins and food safety.
+Body: Protein pasta, rainbow carrots, sprouts with turkey bacon, salmon with (not enough) Caribbean cock seasoning, and chicken shawarma. submitted by /u/onemintyisland to r/MealPrepSunday [link] [comments]
+
+[1s4axd3] source=reddit subreddit=AmIOverreacting
+Title: AIO Over cooking?
+Body: I've (31m) been with my GF (29F) for about 8 months, she's stayed with me for several weeks at a time while I wasnt working, and I always insisted on cooking every day as its something I enjoy and have a lot of experience with. She is particular about how the cleaning is done, and so mutually agreed I cook and she cleans (I have offered to help multiple times as she also does house cleaning too but was told its fine). I recently got a new job and she has moved in, and I'm now getting home later in the evening 3x a week, but fortunately live very close to work so I started coming home during my lunch break to cook dinner so its ready to reheat in the evening. This way I can come home and just relax. This was a huge issue for her, and said she instead wants me to cook it fresh each day after work so that it can be reheated again next day if need be. I typically dont make more than 2 servings each time, and what I'm doing now is just what I'd call meal prep. She calls it wasteful since anything she doesn't finish has to be thrown away. Her approach to this quandary blew my mind. I was raised to have independence and to appreciate other people's efforts, and told her it's insane that she has an issue with having to have 3 reheated meals a week (the other 4 I'm at home all day and would make it the evening as normal). I generally try to find middle ground on things, but this one I couldn't fathom how it was an issue at all and stone-walled the disagreement. attached pesto pasta submitted by /u/Captain-Barbosa- to r/AmIOverreacting [link] [comments]
+
+[1u4w5zr] source=reddit subreddit=mealprep
+Title: People who cook at home, how much of your daily routine is taken up by meal prep and cooking?
+Body: submitted by /u/bhole0611 to r/mealprep [link] [comments]
+
+[1nnapv3] source=reddit subreddit=Maltese
+Title: Meal Prep Sunday! Bennie is banished from the kitchen while I'm cooking, so he sits on his throne just outside and ensures I don't drop anything tasty on the floor.
+Body: He's my Executive Chef, and he's very exacting! submitted by /u/ashre9 to r/Maltese [link] [comments]
+
+[hx2swj] source=reddit subreddit=MealPrepSunday
+Title: Zero-Cooking Meal Prep?
+Body: I've been fascinated by this concept—meal prep with virtually zero cooking, or sub-10-minute cooking. Would you guys be interested in a post about that? Basically, I'd show you what I get at the grocery store and what meals I make to enable me to meal-prep for an entire week with less than 10-minutes of cooking. Edit: I'm going to do it, just give me a week or so. Edit2: I made the post, check it out: https://www.reddit.com/r/MealPrepSunday/comments/hzgqzt/zero_cook_meal_prep_10_meals_in_25_minutes_w/ submitted by /u/zshakked to r/MealPrepSunday [link] [comments]
+
+[1r8t7er] source=reddit subreddit=budgetfood
+Title: Meal prep people: how do you stop Sunday cooking from ruining your entire day off?
+Body: Every time I try “serious” meal prep, I blink and suddenly my whole Sunday is chopping and washing dishes.​ I love the idea of cheap, prepped meals, but spending 4–5 hours in the kitchen kills my motivation fast.​ If you prep regularly, what’s your realistic system that doesn’t eat your only free day?​ Do you batch just one thing (like proteins or carbs), or go all‑in on full boxed meals for the week?​ I’m hunting for low‑effort, high‑leverage habits instead of Instagram‑perfect prep marathons.​ Walk me through your actual routine, time breakdown, and any shortcuts you wish you’d learned earlier. submitted by /u/Affectionate_Tip3238 to r/budgetfood [link] [comments]
+
+[jrpp17] source=reddit subreddit=AskCulinary
+Title: I’m Kristen Miglore, Food52 founding editor ＆ Genius Recipes writer and host—I’m here to talk all things home cooking, from fixing kitchen fails to holiday meal prep. AMA!
+Body: UPDATE: All your wonderful questions are making me ravenous, so I'm wrapping up, but will try to check back in later on—thanks for hanging out and have a safe, delicious holiday season everyone! For nearly a decade now, I’ve been uncovering the recipes that change the way we cook for my Genius Recipes series at Food52 , with a whole lot of help from the Food52 community. Think: a life-changing tomato sauce , category-defining guacamole , and the best (and simplest) roast chicken . That means 10 years of late-night recipe testing and even-later writing sessions, real-talk conversations with chefs and cookbook authors, birthing two cookbooks I’m really proud of (with one more for beginners on the way), and, most recently, figuring out how to do it all on camera and with mics strapped to my body instead of alone in my midnight lair. I’ve felt the joy of stumbling onto hundreds of brilliant, rule-breaking recipes and shortcuts in the kitchen—and the sting of my fair share of spectacular failures, too (maybe don’t ask me how I learned about high-efficiency ovens). Now that I’m the parent of a feisty toddler, I appreciate quick, rewarding recipes more than ever and avoid peeling all fruit and vegetables unless strictly necessary. I’m very happy to be here to answer all your questions on home cooking for the next 90 minutes or so, and I’ll try to check back later, too—whether you’re hunting for dinner inspiration (for starters, tonight: Kris Yenbamroong’s Pad Thai , tomorrow: King Arthur Flour’s Crispy Cheesy Pan Pizza , or need help planning your Thanksgiving menu, or could use a pep talk about how to fix something that didn’t turn out the way you’d hoped. Lots of experience there. I also recently launched a podcast: The Genius Recipe Tapes , the first from Food52’s new network of shows. If you’ve got any questions about a particular episode, guest, or want the behind-the-scenes scoop on how (and why) we launched a podcast network in the middle of a pandemic, just ask. Our latest episode with Anita Shepherd, founder of Anita’s Yogurt —on how she veganizes her family’s entire Thanksgiving (besides the turkey) and becoming, without a single investor, the first yogurt in the world to be fair-trade certified—drops tomorrow. Please listen and subscribe here , and let me know what you think. Thanks for being here—excited to chat. Proof: https://i.redd.it/j9pat3mr2qx51.jpg submitted by /u/food52 to r/AskCulinary [link] [comments]
+
+[1qrtf0e] source=reddit subreddit=cookingforbeginners
+Title: Nobody tells you cooking has startup costs that rival a small business
+Body: So I decided to finally start cooking at home instead of living off takeout. Downloaded some recipes, made a grocery list, felt very adult about the whole thing. First recipe calls for cumin, paprika, oregano, and chili powder. Ok cool. Second recipe needs turmeric, coriander, and garam masala. Third one wants thyme, rosemary, and bay leaves. By the time I finished my list I needed like 15 different spices. Went to the grocery store and bought one of those spice rack sets because it seemed more economical than buying them individually. $80. Then I needed a decent pan because my one pan from college has the nonstick coating peeling off. $40. Needed a real knife because apparently the dull one I've been using for 6 years is "dangerous." $30. Cutting board, spatula, some measuring cups because I've been eyeballing everything like a lunatic. Another $50. I spent $200 before I even bought the actual food. Made the recipe. It was fine. Used maybe 1/4 teaspoon of the cumin. Now I have an entire jar of cumin that will sit in my cabinet until I die. Every recipe uses like one spice one time and then never again. I have a jar of cardamom I bought for ONE dish. I don't even know what cardamom tastes like because the recipe used so little of it. But there it sits. Waiting. Judging me. Is this normal?? Does everyone just have a graveyard of spices they used once? Do the spices ever actually get used up or do they just live in your cabinet forever as a monument to that one time you tried to make tikka masala? How do you even start cooking affordably when the barrier to entry is so high? Feel like every recipe assumes you already have a fully stocked kitchen and I'm over here googling "can I substitute cumin with literally anything else I own" Gave up and ordered pizza that night. Sat there eating it while playing grizzly's quest while doing the math on how many pizzas I could've bought with the $200 I just dropped on cooking equipment I used once. submitted by /u/Limp_Height_4439 to r/cookingforbeginners [link] [comments]
+
+[1me4xlr] source=reddit subreddit=Mommit
+Title: Anyone else feel like the hardest part of mom life is the feeding, the cooking, the meal prep? Basically everything revolving food!
+Body: I’ve been thinking about what exactly is making my days feel so heavy and demanding with two kids. It’s not exactly the kids per se, it’s the demands in between. Specially — food! The grocery shopping The mental load of “what should I make for breakfast, lunch, and dinner” every day nonstop The meal prep The cooking itself The trying to find the time to cook and make said food The eating and cleanup that follows suit I feel like every day is a toss up on how meal times are gonna go. Trying to fraction out the time that cooking, eating, and cleanup takes each meal is so tough! Not to mention, how do you cook with a toddler?! Like seriously.. how do you do it? I try really hard to make good, wholesome meals and sometimes they take anywhere from 30 mins to 1 hour to cook. Keeping a toddler entertained during those times… phew!!! Anyone else feel this way? That the food, the meals, the cooking etc takes over your life when you have kids? If it wasn’t for all of that, the days would be a breeze, honestly. What has made this aspect of parenting feel less overwhelming to you? Curious on your thoughts! submitted by /u/takeaabreath to r/Mommit [link] [comments]
+
+[tc602v] source=reddit subreddit=MealPrepSunday
+Title: meal prepping in japan! took a few months to get the hang of grocery shopping and cooking in a new country, but i think i've figured it out!
+Body: submitted by /u/booritney to r/MealPrepSunday [link] [comments]
+
+[7g4zqd] source=reddit subreddit=coolguides
+Title: A guide to cooking and baking substitutions
+Body: submitted by /u/randomusefulbits to r/coolguides [link] [comments]
+
+[kgdsiv] source=reddit subreddit=vegetarian
+Title: For those of you who have looked up and down for a suitable lunch meat substitute, I have started cooking and slicing the quorn roast for a deli style sandwich. Its just about the same price you'd pay for a product made with meat and I think it tastes perfect.
+Body: submitted by /u/Wifeofwes to r/vegetarian [link] [comments]
+
+[1v9rzhk] source=reddit subreddit=AskAnAustralian
+Title: Anyone given up on home cooking as a single person?
+Body: 500g of the shittest mince is around $10, which gives me one dinner and some leftovers for lunch. Then add spice mixes, bread and the time to cook and clean. A budget Colesworth sirloin steak is $10, or $15 with chips/salad at my local Pub on a Wednesday night. Meanwhile I can get bulk frozen meals at $6-8 a set, a greasy kebab for $10, or half a chicken at my local chargrill joint for $8-10. I still do some meal prep, but it’s honestly not saving me that much money - the only benefit is I know exactly what’s going in it submitted by /u/SoybeanCola1933 to r/AskAnAustralian [link] [comments]
+
+[1t3p1vz] source=reddit subreddit=Cooking
+Title: Meal Prep or Cooking in general in my communal situation. Need advice.
+Body: I’ve just begun a new job with the federal government where I live at my workplace and we share a fairly large kitchen. The problem is the kitchen is a gutted church. So we have a microwave, a hot plate, an outdoor propane grill, and a sink. We are suppose to have a stove eventually. But that’s an unknown amount of time out. I personally own a Forman grill, and rice cooker. I’m trying to eat healthier and ideally better tasting food than rice with some pork in it. I’ve been trying to find a reliable recipe source, I’ve mostly been watching https://youtube.com/@stealth\_health\_life?si=lkaqOJ8Kl9dEjZw2 Stealth Health Life on YouTube, but a bunch of his meals require a pressure cooker, or an air fryer, or a slow cooker. I could buy one but they are expensive and I don’t have a lot of room in this situation. So I’m looking either for a source for good recipes that are things I could actually make, or recommendations how I can compensate for my missing components. submitted by /u/jpdelta6 to r/Cooking [link] [comments]
+
+[gsr9yw] source=reddit subreddit=MealPrepSunday
+Title: Staying home sick and been too fatigued to do any cooking the last few days. Today I felt better so I did some meal prep
+Body: submitted by /u/linco95 to r/MealPrepSunday [link] [comments]
+
+[dkqv29] source=reddit subreddit=AmItheAsshole
+Title: WIBTA for refusing to stop cooking bacon in my kitchen due to my teenage daughters vegan lifestyle?
+Body: Dad here, old fart, loves his daughter to pieces but I’m struggling to see eye to eye with my teenager and wife on this one. We’ve always been a meat eating family, we live in the rural Midwest and bacon for breakfast is pretty much a given. This year my 14 y/o daughter decided to go vegan, and I jumped onto her support team with enthusiasm. We learned how to substitute ingredients, cook new things, try new things, I adjusted our budget to include more expensive vegan substitutes for her, etc. None of this has been a problem for me until recently. She saw me cook bacon in a pan, and then I rinsed it out to load in the dishwasher. She exploded in anger (teen years, I’m not too fussed about the anger explosion, I know she doesn’t mean it) and said that that was HER pan for vegan food. I was completely floored and said, kiddo this here is a family pan, older than you, it’s not YOUR pan. She asked me to purchase her a pan that she can solely use for vegan food. I didn’t want her to feel weird about food, so I said sure, and ordered her a few colored ones that are only for her. The reason they’re colored is so it helps me remember that I’m not to touch them unless I’m cooking vegan. That wasn’t good enough. Now apparently the dishwasher is ‘contaminated’ with animal product, and the fridge has ‘bacon grease fingers’ on it (because I eat bacon and then touch the fridge) and she’s asked me and her mom to completely stop eating meat at home. I don’t mean I literally touch the fridge with greasy bacon hands, because I wash my hands, but it’s clearly enough that it upsets my daughter. frankly I’m on team hell no, her mom is much more amenable and strongly wants me to consider taking our daughter up on the request. My wife’s reasoning is that both our parents live close so we can eat meat products there, and that she doesn’t want our daughter to feel uncomfortable in the kitchen. My daughter says she is fine with cheese and butter in the fridge, but it’s specifically meat products that make her feel sick. Now I’m sorry for her, but I feel like she just needs to adapt and live side by side, because I’m not going to stop eating bacon in my own house. submitted by /u/frustratingbaconeate to r/AmItheAsshole [link] [comments]
+
+[8fa58w] source=reddit subreddit=EatCheapAndHealthy
+Title: Learning to meal prep/cook due to being unemployed, did my calculations after spending 4 hours cooking today, and immediately blocked Ubereats from my phone afterwards!
+Body: Newbie loving all the advice from this group. After becoming unemployed for first time in 12 years due to vision impairment, starting taking cooking lessons, because knew time to stop wasting money on takeout/ready made shop meals. Today I made 4x chicken breast and veggies, 4 x pork sausages and veggies, 4x brown rice, veggies and chickpeas, and 8x green smoothies with spinach, banana, and berries. Did the math after, chicken came to $2.96 per serve, pork $2.09 per serve, rice $1.66 per serve and smoothies $1.70 per serve. Good lesson to learn while unemployed! (Prices Aussie grocery store.) Thanks for all the great info in this subreddit! submitted by /u/SunnyLego to r/EatCheapAndHealthy [link] [comments]
+
+[toooa5] source=reddit subreddit=AmItheAsshole
+Title: AITA for trying to convince my daughter-in-law to start cooking?
+Body: My son and his gf (both 29) aren’t married but they’ve been together for 7 years now so I’ll refer to her as my DIL. We have a great relationship and I’m very happy she’s the one with my son. We had some issues in the past with her being too shy and reserved but it’s all good now. They’re both doctors and are currently at the last year of their residency before becoming specialists. That means that they work a lot and have a lot of responsibilities as they both enjoy academic research, so work kind of never ends for them. They’ve been living together for 3 years now and according to them, this is their routine. Wake up at 6AM, go to the hospital, have lunch at the hospital cafeteria around 12, then continue to work until 17.00 and then return home. My DIL doesn’t cook. I found out about it after they started living together and my son told me that they always ate at the hospital and on their off days they’d eat outside or order takeaway. I know for a fact that my DIL can cook well as she has helped me host family dinners and always brings something she’s made, however she never cooks for them. I have tried telling her that eating home cooked meal is healthier but claims that the hospital food is also healthy and balanced and that everybody eats there. I tried suggesting meal prep on sundays and then taking their lunch at work but she doesn’t want to. Apparently her mother told her not to send her energy doing things she doesn’t enjoy and she doesn’t feel like cooking and washing the dishes after, so she just doesn’t do it. Also she says they work hard enough and they’re able to afford eating out whenever they feel like, so she doesn’t see the need to spend her limited free time to cook. I am a lawyer so I now what a busy schedule looks like but I still always found time to cook for my family 3 times a week. It’s not the most enjoyable task but seeing my son and husband enjoy my meals was reward enough. That’s why I’m trying to convince her to try cooking, especially since they told me they’ll try for a baby next year after their exam. Last time she was rude to me, she told me to stop trying to micromanage her and mind my own business but I’m just trying to look out for them. So AITA? Edit: I guess I’m the AH. Pls don’t twist my words, I never said she should cook for my son nor that my son needs to eat homemade meals. I just suggested it as a way to eat healthier and save money. As for why my son doesn’t cook, I guess he never learnt. He never enjoyed it and I don’t think he has the time to learn at the moment. My relationship with my DIL won’t change because of that, we understand and appreciate each other despite our differences. But I appreciate all the comments. submitted by /u/Emergency_You_1491 to r/AmItheAsshole [link] [comments]
+
+[1ml7umr] source=reddit subreddit=Cooking
+Title: What cooking trick made you feel like you unlocked a cheat code?
+Body: I recently learned that shredding chicken with a hand mixer is 10000x easier than doing it with forks. It turned shredded chicken from an "occasionally will make this, but it's annoying" food to a meal prep staple for me. What other tips have you learned that takes something from annoying to easy? submitted by /u/bit_perplexed to r/Cooking [link] [comments]
+
+[1pg3ifc] source=reddit subreddit=Cooking
+Title: Burned out from weekly meal prepping and cooking in general. Any advice on how to get back into it?
+Body: Hello! I’m just wondering if anyone has any advice or suggestions for meal prepping and daily cooking when it comes to burn out? I do most of the planning, shopping, prepping, and cooking for just me and my husband and have been for years now. It initially started so we could lose weight and save money, but turned into a hobby I thoroughly enjoy. I typically cook almost everyday (breakfast and lunch are meal prepped at the beginning of the week), we usually have a lot of variety in our meals, and maybe do takeout once or twice a week for dinner. However, I have stopped cooking almost altogether because of burnout and stress. Since then, I’ve gained weight that I had previously lost and I find it very difficult to get back in the kitchen now and have absolutely no inspiration or patience for it. Any advice or guidance is appreciated because I genuinely enjoy cooking and desperately want to get back into it. Thank you! Edit: Just to clarify, I do not do 100% of everything! I do a large majority of it but my husband does help where he can by making sides, paying for the groceries, and washing the dishes. I appreciate the concern, it’s extremely valid :) cooking is something I enjoy and took up to help us lose weight along with our individual dietary restrictions. submitted by /u/Tiredthrowaway2000 to r/Cooking [link] [comments]
+
+[1tu64nb] source=reddit subreddit=RateMyPlate
+Title: today I did some batch cooking/ meal prep so I made sandwiches, chicken & rice bowls, brownies, & overnight oats :) I made sandwiches with the ham I roasted last night!
+Body: submitted by /u/sweetiepie-xo to r/RateMyPlate [link] [comments]
+
+[1udfxf3] source=reddit subreddit=cookingforbeginners
+Title: can i substitute olive oil for mustard oil or butter when cooking (penne) pasta?
+Body: sorry if its a stupid question but i have ZERO knowledge when it comes to cooking and i was trying to make this pasta recipe and it looked so good but i dont have olive oil submitted by /u/KeithAndHisDumbass to r/cookingforbeginners [link] [comments]
+
+[1vxehwq] source=reddit subreddit=caloriecount
+Title: Can someone please ELI5 why you have to measure the cooked weight of all of your food before you divide portions when calculating (when meal prepping or cooking for the family)?
+Body: I just cannot wrap my head around this for some reason no matter how much Googling I do. And maybe I don’t need to understand it, but I want to. I just don’t understand why you can’t use the weight measurements/calorie amounts for the pre-cooked food, calculate your total, and then just skip to measuring each cooked portion, and divide. Please help and don’t skimp on the “like I’m 5” part because I am really not grasping this and it’s making me feel really silly. submitted by /u/betteronuranus to r/caloriecount [link] [comments]
+
+[n1afb9] source=reddit subreddit=lifehacks
+Title: 40 ingredient substitutes for cooking and baking.
+Body: submitted by /u/FoxyFoxMulder to r/lifehacks [link] [comments]
+
+[1r7sx5l] source=reddit subreddit=Cooking
+Title: Stuff that's worth/not worth cooking at home?
+Body: I recently tried cooking shrimp and veggie tempura for the first time. I watched a few videos and followed every step to the tee. My biggest takeaway was that it's just not worth the trouble to cook tempura at home. I work full-time and just cook for meal prep mostly. So I want to maximize the time I have to cook stuff thats high ROI lol. Any suggestions or recommendations for stuff that's worth/not worth the effort? submitted by /u/Any-Sleep-478 to r/Cooking [link] [comments]
+
+[n0n1ci] source=reddit subreddit=coolguides
+Title: Ingredient substitutes for cooking & baking
+Body: submitted by /u/LuckyLaceyKS to r/coolguides [link] [comments]
+
+[1nxyqrp] source=reddit subreddit=Cooking
+Title: What are some good non-alcohol substitution for red wine in cooking?
+Body: What are some good non-alcohol substitution for red wine in cooking? submitted by /u/drugsrbed to r/Cooking [link] [comments]
+
+[1s8vqgb] source=reddit subreddit=mealprep
+Title: I work with a lot of elderly patients, and with my own parents having problems cooking for themselves, I decided to try to meal prep for some of the families around me. This is my first menu, any critiques?
+Body: submitted by /u/DomesticatedAnarchy to r/mealprep [link] [comments]
+
+Identify the genuinely recurring problems as instructed and return the JSON array.
