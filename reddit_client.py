@@ -228,8 +228,8 @@ def search_reddit_for_problem_signals(
 ) -> list[Post]:
     """
     Higher-level search in ONE single HTTP request: combines topic with
-    frustration/need keywords into a single Boolean OR query, avoiding
-    multiple HTTP requests and eliminating rate limit (HTTP 429) risks.
+    frustration/need keywords into a single Boolean OR query. This usually
+    reduces requests and the likelihood of rate limiting (HTTP 429).
     """
     if keywords is None:
         print(f"Generating dynamic problem signals for topic: {topic!r}")

@@ -12,5 +12,10 @@ ENV/
 # macOS
 .DS_Store
 
+# Local editor settings
+.idea/
+
 # Temporary outputs
 response.txt
+posts.json
+prompt.txt

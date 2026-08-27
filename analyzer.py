@@ -182,9 +182,8 @@ def analyze_posts_via_api_raw(
     """
     Automated path: send `posts` to Gemini and return the RAW response text
     (unparsed JSON string), after checking for truncation. Split out from
-    analyze_posts_via_api() so callers that want to archive the exact raw
-    model output (e.g. main.py's `run` command, mirroring the manual
-    workflow's response.txt) can do so before/independent of parsing it.
+    analyze_posts_via_api() so callers that need the raw model output can
+    handle it before or independently of parsing it.
     """
     import os
 
