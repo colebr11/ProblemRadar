@@ -1,88 +1,35 @@
 # Problem Radar
 
-A high-performance CLI tool and AI pipeline that feeds **live Reddit discussion data into Gemini LLMs to surface genuinely recurring software opportunities, unmet needs, and high-friction user pain points**, complete with opportunity scoring, pain ratings, and representative post references.
+Problem Radar is a Python command-line tool for finding recurring software
+problems in Reddit discussions. It searches for relevant posts, asks an LLM
+to group repeated frustrations, and prints product-opportunity reports.
 
----
+Each report includes a problem description, the people affected, existing
+workarounds, a pain level, an opportunity score, and representative posts.
 
-## 🏗️ Architecture & Data Flow
+## Quick start
 
-```
-Reddit RSS Search API (1 Request, High-Intent Boolean Signals)
-                       │
-                       ▼
-               reddit_client.py ──► models.save_posts() ──► posts.json
-                       │
-                       ▼
-                  analyzer.py ──► prompt.txt
-                       │
-                       ▼
-              (Gemini 3.6 Flash / LLM) ──► response.txt
-                       │
-                       ▼
-             main.py parse ──► Formatted Problem Report (or JSON)
-```
+Problem Radar has two workflows.
 
-### Core Components
-* **[`models.py`](file:///Users/bcole/Downloads/Projects/problem_radar/models.py)**: Data contracts for `Post` and `Problem`, plus `save_posts()` and `load_posts()` for local JSON serialization.
-* **[`reddit_client.py`](file:///Users/bcole/Downloads/Projects/problem_radar/reddit_client.py)**: High-performance, single-request Reddit RSS search engine. Supports Boolean intent queries (`--signals`), subreddit filtering (`--subreddit`), and automated noise filtering.
-* **[`analyzer.py`](file:///Users/bcole/Downloads/Projects/problem_radar/analyzer.py)**: Prompt engineering instructions (`build_full_prompt`), response JSON parser (`parse_response`), and automated Gemini API client (`analyze_posts_via_api`).
-* **[`main.py`](file:///Users/bcole/Downloads/Projects/problem_radar/main.py)**: CLI entry point supporting `generate`, `--signals`, `--subreddit`, `parse`, and automated Gemini `run` (`run-api` retained for compatibility).
-* **[`archives/`](file:///Users/bcole/Downloads/Projects/problem_radar/archives)**: Storage directory for past test runs and benchmark datasets.
+### Manual workflow
 
----
-
-## ✨ Key Features
-
-* 🚀 **1-Request Boolean Signal Search**: Combines search topics with frustration keywords (`wish`, `track`, `annoying`, `alternative`, `recommend`, `frustrating`, `hate`) in **1 single HTTP call**, completing in <2 seconds with **0 HTTP 429 rate limit risk**.
-* 🧹 **Automated Noise Subreddit Filtering**: Automatically excludes non-software mega-repost subreddits (`r/BestofRedditorUpdates`, `r/movies`, `r/AITAH`, `r/natureismetal`) to ensure high-density, relevant datasets.
-* 💾 **Local Post Persistence**: Automatically saves real Reddit posts to `posts.json` and infers matching archives during parsing.
-* 📊 **Structured Problem Reports**: Outputs recurring problem clusters with Pain Levels (1–10), Opportunity Scores (1–100), Target Audiences, Existing Workarounds, and representative Reddit post titles/IDs.
-
----
-
-## 🚀 Getting Started
-
-No third-party packages are required for the default manual CLI — built using standard-library Python 3.10+.
-
-### 1. Generate Prompt from Live Reddit Search
+Use this when you want to paste the generated prompt into any LLM yourself.
+It requires only Python 3.10 or later.
 
 ```bash
-# Broad search (default topic: "tracking subscriptions")
-python3 main.py generate "tracking subscriptions"
-
-# High-intent Boolean problem signal search (Recommended)
+# Search Reddit and create posts.json plus prompt.txt
 python3 main.py generate "apartment hunting" --signals
 
-# Subreddit-targeted search
-python3 main.py generate "apartment hunting" --subreddit=NYCapartments
-```
-
-This fetches real posts, saves them to `posts.json`, and writes `prompt.txt`.
-
-### 2. Run AI Analysis (Manual Workflow)
-
-1. Open your preferred LLM chat interface.
-2. Paste the entire contents of `prompt.txt`.
-3. Copy the reply (JSON array) and save it to `response.txt`.
-
-### 3. Parse & Display Report
-
-```bash
-# Formatted CLI report
+# Paste prompt.txt into an LLM, save its JSON reply as response.txt, then:
 python3 main.py parse response.txt
-
-# Parse past archived test runs
-python3 main.py parse archives/apartment_hunting_signals_response.txt
-
-# Export raw JSON
-python3 main.py parse response.txt --json
 ```
 
----
+`generate` writes `posts.json` and `prompt.txt` to the current folder. The
+posts file lets the parser show the original post titles in the final report.
 
-## 🤖 Automated Gemini Workflow
+### Automated Gemini workflow
 
-Install dependencies and create an API key in [Google AI Studio](https://aistudio.google.com/apikey). Then set it in your shell environment:
+Use this to search, analyze, and print a report in one command.
 
 ```bash
 pip install -r requirements.txt
@@ -90,18 +37,57 @@ export GEMINI_API_KEY="your_api_key_here"
 python3 main.py run "apartment hunting"
 ```
 
-The `run` command collects live posts, sends the structured analysis prompt directly to Gemini, parses its JSON response, and prints the formatted problem report in a single automated step. `run-api` is retained as a compatibility alias.
+The `run` command keeps the posts, prompt, and Gemini response in memory. It
+prints the result to the console and does not create `posts.json`, `prompt.txt`,
+or archive files.
 
-> [!NOTE]
-> The default model is **`gemini-3.6-flash`**, providing high speed and structured outputs.
+## Commands
 
----
+```bash
+# Broad Reddit search and prompt generation
+python3 main.py generate "tracking subscriptions"
 
-## 📂 Past Test Archives (`archives/`)
+# Search with problem-signal keywords such as “wish” and “frustrating”
+python3 main.py generate "apartment hunting" --signals
 
-| Test Topic | Search Strategy | Archived Response File |
-| :--- | :--- | :--- |
-| **Subscriptions** | Plain Search | [`archives/subscriptions_response.txt`](file:///Users/bcole/Downloads/Projects/problem_radar/archives/subscriptions_response.txt) |
-| **Apartment Hunting** | Plain Search (Baseline) | [`archives/apartment_hunting_response.txt`](file:///Users/bcole/Downloads/Projects/problem_radar/archives/apartment_hunting_response.txt) |
-| **Apartment Hunting** | High-Intent Signals | [`archives/apartment_hunting_signals_response.txt`](file:///Users/bcole/Downloads/Projects/problem_radar/archives/apartment_hunting_signals_response.txt) |
+# Limit a search to one subreddit
+python3 main.py generate "apartment hunting" --subreddit=NYCapartments
 
+# Analyze an existing manual LLM response
+python3 main.py parse response.txt
+
+# Print a raw JSON report instead of the formatted report
+python3 main.py parse response.txt --json
+python3 main.py run "apartment hunting" --json
+```
+
+`run-api` is also supported as an alias for `run`.
+
+## How it works
+
+1. Problem Radar searches Reddit’s public RSS feeds for posts about a topic.
+2. It sends the posts to Gemini, or creates a prompt for you to use with an
+   LLM manually.
+3. The LLM returns only repeated problems, not one-off complaints, as
+   structured JSON.
+4. Problem Radar prints the results as an easy-to-read report or JSON.
+
+The automated workflow uses the default model configured in `analyzer.py`:
+`gemini-3.6-flash`.
+
+## Project files
+
+- `main.py` — command-line interface and report formatting.
+- `reddit_client.py` — Reddit RSS search and problem-signal queries.
+- `analyzer.py` — prompt construction, Gemini integration, and response parsing.
+- `models.py` — post and problem data models.
+- `mock_data.py` — sample posts used as a fallback when parsing a response
+  without a matching `posts.json` file.
+
+## Notes
+
+- Reddit search results and availability can vary, and anonymous RSS requests
+  can be rate-limited.
+- The manual workflow does not need an API key or third-party Python package.
+- The automated workflow requires the `google-genai` package and a Gemini API
+  key.
