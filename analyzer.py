@@ -136,14 +136,15 @@ def parse_response(raw_text: str) -> list[Problem]:
 
 def expand_topic_keywords_via_api(topic: str, api_key: str | None = None) -> list[str]:
     import os
-    from google import genai
-    from google.genai import types
 
     resolved_api_key = api_key or os.environ.get("GEMINI_API_KEY")
     if not resolved_api_key:
         return DEFAULT_PROBLEM_KEYWORDS
 
     try:
+        from google import genai
+        from google.genai import types
+
         client = genai.Client(api_key=resolved_api_key)
 
         # Enforce short single words or 2-word pain signals (no full phrases)
