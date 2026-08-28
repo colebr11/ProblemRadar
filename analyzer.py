@@ -48,6 +48,11 @@ recur across MULTIPLE posts (2 or more) unless the instructions say otherwise.
 recurring problem. Do not invent a category just to use every post.
 5. Be conservative: if you are unsure whether two posts describe the same problem, \
 treat them as different problems rather than merging them.
+6. Report only problems for which a software product could realistically provide a
+meaningful primary solution. Do not report problems that fundamentally require a
+person to comply, staff to intervene, a policy to change, or a physical service to
+work differently, unless software can directly change the core outcome. A weak
+dashboard, reminder, or directory does not make a non-software problem viable.
 
 For each genuinely recurring problem you find, produce an object with these exact \
 fields:
@@ -58,6 +63,9 @@ fields:
 represent this problem — include ALL posts you assigned to this cluster
   - "who_experiences": short description of who experiences this problem
   - "existing_workarounds": what workarounds people currently use, based on the posts
+  - "potential_solution": a specific, plausible software product that addresses the
+core problem. State the user, the product's key workflow, and how it improves on the
+current workaround. Do not repeat an existing non-software workaround.
   - "pain_level": integer 1-10, how painful/frustrating this problem seems based on \
 the language used in the posts
   - "opportunity_score": integer 1-100, your estimate of how promising this is as a \
@@ -126,6 +134,7 @@ def parse_response(raw_text: str) -> list[Problem]:
                 representative_post_ids=item.get("representative_post_ids", []),
                 who_experiences=item.get("who_experiences", ""),
                 existing_workarounds=item.get("existing_workarounds", ""),
+                potential_solution=item.get("potential_solution", ""),
                 pain_level=item.get("pain_level", 0),
                 opportunity_score=item.get("opportunity_score", 0),
                 score_reasoning=item.get("score_reasoning", ""),

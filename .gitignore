@@ -19,3 +19,4 @@ ENV/
 response.txt
 posts.json
 prompt.txt
+problem_radar_history.json

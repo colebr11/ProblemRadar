@@ -41,6 +41,7 @@ class Problem:
     representative_post_ids: list[str] = field(default_factory=list)
     who_experiences: str = ""
     existing_workarounds: str = ""
+    potential_solution: str = ""  # a concrete software-first product opportunity
     pain_level: int = 0            # 1-10
     opportunity_score: int = 0     # 1-100
     score_reasoning: str = ""
@@ -67,4 +68,3 @@ def load_posts(filepath: str = "posts.json") -> list[Post]:
         return [Post(**{k: v for k, v in item.items() if k in fields}) for item in data]
     except (FileNotFoundError, json.JSONDecodeError):
         return []
-

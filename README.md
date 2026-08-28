@@ -1,11 +1,13 @@
 # Problem Radar
 
-Problem Radar is a Python command-line tool for finding recurring software
-problems in Reddit discussions. It searches for relevant posts, asks an LLM
-to group repeated frustrations, and prints product-opportunity reports.
+Problem Radar finds recurring, software-solvable problems in Reddit
+discussions. It searches for relevant posts, asks Gemini to group repeated
+frustrations, and presents product opportunities in either the terminal or a
+local browser UI.
 
-Each report includes a problem description, the people affected, existing
-workarounds, a pain level, an opportunity score, and representative posts.
+Each report includes a problem description, a concrete software opportunity,
+the people affected, current workarounds, an opportunity score, and supporting
+discussions.
 
 ## Quick start
 
@@ -41,6 +43,23 @@ The `run` command keeps the posts, prompt, and Gemini response in memory. It
 prints the result to the console and does not create `posts.json`, `prompt.txt`,
 or archive files.
 
+### Local web UI
+
+The browser UI uses the same live Reddit → Gemini pipeline as `run`, while
+adding search history and a mobile-first results experience.
+
+```bash
+pip install -r requirements.txt
+export GEMINI_API_KEY="your_api_key_here"
+python3 web.py
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Enter a topic, wait for
+the analysis to finish, then open a ranked problem to see its proposed software
+solution first. Completed searches are saved locally in
+`problem_radar_history.json` (which is ignored by Git) and are available from
+the History drawer.
+
 ## Commands
 
 ```bash
@@ -68,9 +87,11 @@ python3 main.py run "apartment hunting" --json
 1. Problem Radar searches Reddit’s public RSS feeds for posts about a topic.
 2. It sends the posts to Gemini, or creates a prompt for you to use with an
    LLM manually.
-3. The LLM returns only repeated problems, not one-off complaints, as
-   structured JSON.
-4. Problem Radar prints the results as an easy-to-read report or JSON.
+3. Gemini returns only recurring problems for which software can meaningfully
+   address the core outcome; it excludes primarily physical, policy, or
+   compliance problems.
+4. Problem Radar ranks the opportunities and presents the results in the CLI
+   or browser UI.
 
 The automated workflow uses the default model configured in `analyzer.py`:
 `gemini-3.6-flash`.
@@ -78,6 +99,9 @@ The automated workflow uses the default model configured in `analyzer.py`:
 ## Project files
 
 - `main.py` — command-line interface and report formatting.
+- `web.py` — local HTTP server that exposes the existing automated pipeline to
+  the browser UI.
+- `static/` — mobile-first HTML, CSS, JavaScript, and Figma-exported icons.
 - `reddit_client.py` — Reddit RSS search and problem-signal queries.
 - `analyzer.py` — prompt construction, Gemini integration, and response parsing.
 - `models.py` — post and problem data models.
@@ -91,3 +115,5 @@ The automated workflow uses the default model configured in `analyzer.py`:
 - The manual workflow does not need an API key or third-party Python package.
 - The automated workflow requires the `google-genai` package and a Gemini API
   key.
+- Keep `GEMINI_API_KEY` in your shell environment or another secret manager;
+  do not commit it to the repository.
