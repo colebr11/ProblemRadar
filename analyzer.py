@@ -24,7 +24,7 @@ from typing import Optional
 
 from models import Post, Problem
 
-DEFAULT_MODEL = "gemini-3.6-flash"
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_PROBLEM_KEYWORDS = ["wish", "track", "annoying", "alternative", "recommend", "frustrating", "hate"]
 
 SYSTEM_PROMPT = """You are an analyst for "Problem Radar", a tool that reads online \
@@ -48,11 +48,11 @@ recur across MULTIPLE posts (2 or more) unless the instructions say otherwise.
 recurring problem. Do not invent a category just to use every post.
 5. Be conservative: if you are unsure whether two posts describe the same problem, \
 treat them as different problems rather than merging them.
-6. Report only problems for which a software product could realistically provide a
-meaningful primary solution. Do not report problems that fundamentally require a
-person to comply, staff to intervene, a policy to change, or a physical service to
-work differently, unless software can directly change the core outcome. A weak
-dashboard, reminder, or directory does not make a non-software problem viable.
+6. Prioritize problems where software can create a meaningful improvement. Do not
+discard a genuinely recurring cluster merely because people or processes are also
+part of the resolution. Only exclude a problem when there is no credible software
+role at all. Do not invent a generic dashboard, reminder, or directory to force a
+software fit; instead, keep the opportunity score modest when software fit is weak.
 
 For each genuinely recurring problem you find, produce an object with these exact \
 fields:

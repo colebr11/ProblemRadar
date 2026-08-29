@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -37,6 +38,9 @@ ATOM_NS = "{http://www.w3.org/2005/Atom}"
 # Reddit asks for a descriptive, non-generic User-Agent. Replace the contact
 # info with your own if you're doing anything beyond quick local testing.
 DEFAULT_USER_AGENT = "problem-radar-poc/0.1 (personal non-commercial project)"
+RSS_REQUEST_LOCK = threading.Lock()
+LAST_RSS_REQUEST_AT = 0.0
+MIN_RSS_REQUEST_INTERVAL_SECONDS = 5.0
 
 
 def _strip_html(raw_html: str) -> str:
@@ -79,8 +83,16 @@ def _fetch_atom(
 
     for attempt in range(1, max_retries + 1):
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                data = response.read()
+            # RSS is anonymous and rate-limited. Serialize requests in this
+            # process and leave a real gap between them, including fallbacks.
+            global LAST_RSS_REQUEST_AT
+            with RSS_REQUEST_LOCK:
+                wait = MIN_RSS_REQUEST_INTERVAL_SECONDS - (time.monotonic() - LAST_RSS_REQUEST_AT)
+                if wait > 0:
+                    time.sleep(wait)
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    data = response.read()
+                LAST_RSS_REQUEST_AT = time.monotonic()
             return ElementTree.fromstring(data)
         except urllib.error.HTTPError as e:
             if e.code == 429:
@@ -225,6 +237,7 @@ def search_reddit_for_problem_signals(
     subreddit: str | None = None,
     user_agent: str = DEFAULT_USER_AGENT,
     delay_seconds: float = 0.0,
+    allow_broad_fallback: bool = True,
 ) -> list[Post]:
     """
     Higher-level search in ONE single HTTP request: combines topic with
@@ -250,7 +263,7 @@ def search_reddit_for_problem_signals(
     # narrow and starve the result set. If the signal query came back thin,
     # fall back to a broader plain-text search on the topic alone so callers
     # don't end up with an empty (or near-empty) dataset.
-    if len(topic.strip().split()) == 1 and len(posts) < 15:
+    if allow_broad_fallback and len(topic.strip().split()) == 1 and len(posts) < 15:
         print(
             f"Strict signal search came back thin ({len(posts)} posts) for "
             f"single-word topic {topic!r}; falling back to a broad search."

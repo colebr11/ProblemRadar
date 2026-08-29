@@ -56,9 +56,20 @@ python3 web.py
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Enter a topic, wait for
 the analysis to finish, then open a ranked problem to see its proposed software
-solution first. Completed searches are saved locally in
-`problem_radar_history.json` (which is ignored by Git) and are available from
-the History drawer.
+solution first. The results remain in rank order as details expand in place.
+
+The browser offers three search lenses:
+
+- **Basic** — a broad Reddit search for the topic, followed by Gemini analysis.
+- **Custom** — up to three user-entered refinement terms for a more focused
+  Reddit query.
+- **Smart** — Gemini chooses up to three topic-specific search signals before
+  Reddit is searched. This uses one extra Gemini request.
+
+The loading screen shows actual pipeline stages and the Custom or Smart terms
+being used. Completed searches are saved locally in
+`problem_radar_history.json` (which is ignored by Git), can be reopened from
+the History drawer, and can be deleted there one at a time.
 
 ## Commands
 
@@ -94,7 +105,7 @@ python3 main.py run "apartment hunting" --json
    or browser UI.
 
 The automated workflow uses the default model configured in `analyzer.py`:
-`gemini-3.6-flash`.
+`gemini-3.1-flash-lite`.
 
 ## Project files
 

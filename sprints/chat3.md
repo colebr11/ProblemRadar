@@ -26,9 +26,26 @@ software-focused opportunities.
 
 - Completed browser searches are saved locally in `problem_radar_history.json`.
 - History entries reopen their original problems and source discussions.
+- Each saved radar can be deleted individually from the History drawer, keeping
+  local experiment history easy to clean up.
 - Fixed the completion handoff so results render immediately when analysis
   returns; a history refresh can no longer keep the UI on the loading screen.
 - Added a short timeout to the nonessential history request.
+
+### Search lenses and useful feedback
+
+- Added three browser search modes without changing the CLI workflow:
+  - **Basic** searches Reddit broadly for the entered topic, then uses Gemini
+    once to identify and rank recurring opportunities.
+  - **Custom** lets the user supply up to three refinement terms, such as
+    `dating apps`, `hookups`, and `serious relationships`.
+  - **Smart** makes one additional Gemini request to choose up to three
+    topic-specific search signals before it searches Reddit.
+- Added a real staged loading screen that shows the current pipeline stage,
+  progress through known stages, and the actual custom or Smart signals once
+  they are available. It does not fabricate search counts or statistics.
+- Serialised anonymous Reddit RSS requests and prevents overlapping browser
+  searches to reduce avoidable rate-limit pressure.
 
 ### Better software-opportunity analysis
 
@@ -39,6 +56,10 @@ software-focused opportunities.
 - The expanded view now places **Software Opportunity** first.
 - Existing workarounds are correctly labeled and moved lower in the detail
   view; source discussions are a smaller, quieter footer section.
+- Results retain their original ranking when opened. Their detail content now
+  expands and collapses in place with a brief motion transition.
+- Enlarged the score treatment and allowed result titles and summaries to wrap
+  instead of truncating meaningful text.
 
 ### Validation
 
@@ -63,9 +84,9 @@ review the software opportunity. Existing saved searches generated before Chat
 
 ## Recommended next steps
 
-1. **Search quality and speed** — add observable server-side progress, cache
-   recent searches, and evaluate results against a small curated benchmark to
-   reduce slow or non-software opportunities.
+1. **Search quality and speed** — cache recent searches and evaluate results
+   against a small curated benchmark to reduce slow or non-software
+   opportunities. The UI now already exposes real server-side milestones.
 2. **Product controls** — add optional subreddit selection, a way to retry or
    refine a search lens, and filters/sorting for score, pain level, and audience.
 3. **Accounts and persistence** — add authentication and a database only when
