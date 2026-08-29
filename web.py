@@ -27,7 +27,9 @@ from reddit_client import search_reddit_for_problem_signals, search_reddit_posts
 ROOT = Path(__file__).parent
 STATIC_DIR = ROOT / "static"
 HISTORY_PATH = ROOT / "problem_radar_history.json"
+SAVED_IDEAS_PATH = ROOT / "problem_radar_saved_ideas.json"
 HISTORY_LOCK = threading.Lock()
+SAVED_IDEAS_LOCK = threading.Lock()
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
@@ -62,6 +64,80 @@ def _delete_history(entry_id: str) -> bool:
             return False
         HISTORY_PATH.write_text(json.dumps(updated, indent=2))
         return True
+
+
+def _load_saved_ideas() -> list[dict]:
+    try:
+        data = json.loads(SAVED_IDEAS_PATH.read_text())
+        return data if isinstance(data, list) else []
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def _idea_key(topic: str, problem: dict) -> str:
+    title = re.sub(r"\s+", " ", str(problem.get("title", "")).strip()).casefold()
+    return f"{topic.casefold()}::{title}"
+
+
+def _save_idea(item: dict) -> tuple[dict, bool]:
+    """Store one full opportunity snapshot locally, without duplicating it."""
+    with SAVED_IDEAS_LOCK:
+        ideas = _load_saved_ideas()
+        existing = next((idea for idea in ideas if idea.get("key") == item["key"]), None)
+        if existing:
+            return existing, False
+        ideas.insert(0, item)
+        SAVED_IDEAS_PATH.write_text(json.dumps(ideas[:50], indent=2))
+        return item, True
+
+
+def _delete_saved_idea(idea_id: str) -> bool:
+    with SAVED_IDEAS_LOCK:
+        ideas = _load_saved_ideas()
+        updated = [idea for idea in ideas if idea.get("id") != idea_id]
+        if len(updated) == len(ideas):
+            return False
+        SAVED_IDEAS_PATH.write_text(json.dumps(updated, indent=2))
+        return True
+
+
+def _saved_idea_summary(item: dict) -> dict:
+    problem = item.get("problem", {})
+    return {
+        "id": item.get("id"),
+        "key": item.get("key"),
+        "topic": item.get("topic", ""),
+        "title": problem.get("title", "Untitled opportunity"),
+        "description": problem.get("description", ""),
+        "opportunity_score": problem.get("opportunity_score", 0),
+        "saved_at": item.get("saved_at"),
+    }
+
+
+def _clean_saved_idea(payload: dict) -> dict:
+    topic = _clean_topic(payload.get("topic"))
+    problem = payload.get("problem")
+    if not isinstance(problem, dict):
+        raise ValueError("Choose an opportunity to save.")
+    title = re.sub(r"\s+", " ", str(problem.get("title", "")).strip())
+    if not title or len(title) > 300:
+        raise ValueError("That opportunity cannot be saved.")
+    posts = payload.get("posts", [])
+    if not isinstance(posts, list):
+        posts = []
+    signals = payload.get("signals", [])
+    if not isinstance(signals, list):
+        signals = []
+    return {
+        "id": uuid.uuid4().hex,
+        "key": _idea_key(topic, problem),
+        "topic": topic,
+        "signal_mode": str(payload.get("signal_mode", "basic")),
+        "signals": [str(signal) for signal in signals[:3]],
+        "saved_at": datetime.now(UTC).isoformat(),
+        "problem": problem,
+        "posts": posts,
+    }
 
 
 def _summary(item: dict) -> dict:
@@ -197,6 +273,14 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/history":
             return self._json(HTTPStatus.OK, [_summary(item) for item in _load_history()])
+        if path == "/api/saved":
+            return self._json(HTTPStatus.OK, [_saved_idea_summary(item) for item in _load_saved_ideas()])
+        if path.startswith("/api/saved/"):
+            idea_id = unquote(path.removeprefix("/api/saved/"))
+            item = next((idea for idea in _load_saved_ideas() if idea.get("id") == idea_id), None)
+            if item is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved idea is no longer available."})
+            return self._json(HTTPStatus.OK, item)
         if path.startswith("/api/history/"):
             entry_id = unquote(path.removeprefix("/api/history/"))
             item = next((entry for entry in _load_history() if entry.get("id") == entry_id), None)
@@ -214,11 +298,15 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/search":
+        path = urlparse(self.path).path
+        if path not in {"/api/search", "/api/saved"}:
             return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length) or b"{}")
+            if path == "/api/saved":
+                item, created = _save_idea(_clean_saved_idea(payload))
+                return self._json(HTTPStatus.CREATED if created else HTTPStatus.OK, {"item": _saved_idea_summary(item), "created": created})
             topic = _clean_topic(payload.get("topic"))
             signal_mode, custom_signals = _clean_search_options(payload)
             job = _start_job(topic, signal_mode, custom_signals)
@@ -235,6 +323,13 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         path = urlparse(self.path).path
+        if path.startswith("/api/saved/"):
+            idea_id = unquote(path.removeprefix("/api/saved/"))
+            if not idea_id:
+                return self._json(HTTPStatus.BAD_REQUEST, {"error": "Choose a saved idea to remove."})
+            if not _delete_saved_idea(idea_id):
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved idea is no longer available."})
+            return self._json(HTTPStatus.OK, {"deleted": True})
         if not path.startswith("/api/history/"):
             return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
         entry_id = unquote(path.removeprefix("/api/history/"))

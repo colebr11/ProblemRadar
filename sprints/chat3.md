@@ -16,6 +16,7 @@ software-focused opportunities.
   duplicating or replacing backend logic.
 - Added the Figma-based screens in `static/`:
   - Home search with example topic pills.
+  - Saved Ideas shortcut in the home header.
   - Slide-out History drawer for completed searches.
   - Loading state that reflects real pipeline stages without fabricated stats.
   - Ranked results showing the existing opportunity score.
@@ -31,6 +32,20 @@ software-focused opportunities.
 - Fixed the completion handoff so results render immediately when analysis
   returns; a history refresh can no longer keep the UI on the loading screen.
 - Added a short timeout to the nonessential history request.
+- Replaced the unused History-drawer footer with a **How Problem Radar works**
+  page that explains the pipeline, rating inputs, better search lenses, and
+  the limits of the output.
+
+### Saved ideas shortlist
+
+- Added a local **Saved Ideas** collection, separate from disposable search
+  history.
+- Any expanded opportunity can be bookmarked from its Software Opportunity
+  section.
+- Saved ideas preserve their full analysis and can be reopened even after the
+  source radar is removed from History.
+- Duplicate saves are prevented, and each saved idea can be removed from the
+  shortlist.
 
 ### Search lenses and useful feedback
 
@@ -46,6 +61,10 @@ software-focused opportunities.
   they are available. It does not fabricate search counts or statistics.
 - Serialised anonymous Reddit RSS requests and prevents overlapping browser
   searches to reduce avoidable rate-limit pressure.
+- Replaced the dead-end “no recurring problems” response with actions to edit
+  the topic, add focus terms, or try Smart signals.
+- Added a compact search-mode label and subtle interaction states to keep
+  results easier to interpret and use.
 
 ### Better software-opportunity analysis
 
@@ -67,6 +86,7 @@ software-focused opportunities.
 - Verified frontend JavaScript syntax.
 - Verified the local server serves the UI and history endpoint.
 - Tested the browser adapter with the existing `Post` and `Problem` contract.
+- Tested local Saved Ideas persistence, duplicate prevention, and deletion.
 - A live Reddit → Gemini run was not performed in the development environment
   because `GEMINI_API_KEY` was not configured there.
 
@@ -91,10 +111,13 @@ review the software opportunity. Existing saved searches generated before Chat
    refine a search lens, and filters/sorting for score, pain level, and audience.
 3. **Accounts and persistence** — add authentication and a database only when
    users need cross-device saved radars, sharing, or collaboration. Keep the
-   current local-history approach for the single-user prototype.
+   current local History and Saved Ideas approach for the single-user
+   prototype.
 4. **Evidence quality** — allow users to inspect a concise source preview or
    open the original Reddit posts without making evidence dominate the detail
    view.
 5. **Deployment and safeguards** — add configuration management, rate-limit
    handling, error reporting, and a hosted environment before sharing the app
    beyond local use.
+6. **Result-driven refinement** — add a “Search this angle” action inside an
+   expanded result that pre-fills a focused follow-up query from that problem.
