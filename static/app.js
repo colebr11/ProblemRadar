@@ -12,6 +12,12 @@ let homeTopic = '';
 
 const icon = (name, label = '') => `<img src="assets/${name}.svg" alt="${label}" />`;
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+const safeExternalUrl = (value) => {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' || url.protocol === 'http:' ? escapeHtml(url.href) : '';
+  } catch { return ''; }
+};
 
 function button(className, iconName, label, action) {
   return `<button class="${className}" type="button" aria-label="${label}" data-action="${action}">${icon(iconName)}</button>`;
@@ -89,7 +95,11 @@ function postFor(id) { return (currentResult.posts || []).find(post => post.id =
 function renderEvidence(problem) {
   const posts = (problem.representative_post_ids || []).map(postFor).filter(Boolean);
   if (!posts.length) return `<p>${problem.post_count || 0} discussion${problem.post_count === 1 ? '' : 's'} supported this recurring theme.</p>`;
-  return `<ul class="evidence-list">${posts.map(post => `<li>${post.url ? `<a href="${escapeHtml(post.url)}" target="_blank" rel="noreferrer">${escapeHtml(post.title || post.subreddit || 'Reddit discussion')}</a>` : escapeHtml(post.title || post.subreddit || 'Discussion')} ${post.subreddit ? `<span>r/${escapeHtml(post.subreddit)}</span>` : ''}</li>`).join('')}</ul>`;
+  return `<ul class="evidence-list">${posts.map(post => {
+    const url = safeExternalUrl(post.url);
+    const label = escapeHtml(post.title || post.subreddit || 'Reddit discussion');
+    return `<li>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>` : label} ${post.subreddit ? `<span>r/${escapeHtml(post.subreddit)}</span>` : ''}</li>`;
+  }).join('')}</ul>`;
 }
 
 function ideaKey(topic, problem) {

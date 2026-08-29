@@ -28,6 +28,7 @@ ROOT = Path(__file__).parent
 STATIC_DIR = ROOT / "static"
 HISTORY_PATH = ROOT / "problem_radar_history.json"
 SAVED_IDEAS_PATH = ROOT / "problem_radar_saved_ideas.json"
+MAX_REQUEST_BODY_BYTES = 1_000_000
 HISTORY_LOCK = threading.Lock()
 SAVED_IDEAS_LOCK = threading.Lock()
 JOBS: dict[str, dict] = {}
@@ -41,6 +42,7 @@ class SearchInProgressError(RuntimeError):
 def _load_history() -> list[dict]:
     try:
         data = json.loads(HISTORY_PATH.read_text())
+        _restrict_local_file(HISTORY_PATH)
         return data if isinstance(data, list) else []
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -52,7 +54,7 @@ def _save_history(item: dict) -> None:
         history = [existing for existing in history if existing.get("id") != item["id"]]
         history.insert(0, item)
         # Keep local history small; every entry includes its original evidence.
-        HISTORY_PATH.write_text(json.dumps(history[:20], indent=2))
+        _write_local_json(HISTORY_PATH, history[:20])
 
 
 def _delete_history(entry_id: str) -> bool:
@@ -62,13 +64,14 @@ def _delete_history(entry_id: str) -> bool:
         updated = [item for item in history if item.get("id") != entry_id]
         if len(updated) == len(history):
             return False
-        HISTORY_PATH.write_text(json.dumps(updated, indent=2))
+        _write_local_json(HISTORY_PATH, updated)
         return True
 
 
 def _load_saved_ideas() -> list[dict]:
     try:
         data = json.loads(SAVED_IDEAS_PATH.read_text())
+        _restrict_local_file(SAVED_IDEAS_PATH)
         return data if isinstance(data, list) else []
     except (FileNotFoundError, json.JSONDecodeError):
         return []
@@ -87,7 +90,7 @@ def _save_idea(item: dict) -> tuple[dict, bool]:
         if existing:
             return existing, False
         ideas.insert(0, item)
-        SAVED_IDEAS_PATH.write_text(json.dumps(ideas[:50], indent=2))
+        _write_local_json(SAVED_IDEAS_PATH, ideas[:50])
         return item, True
 
 
@@ -97,8 +100,21 @@ def _delete_saved_idea(idea_id: str) -> bool:
         updated = [idea for idea in ideas if idea.get("id") != idea_id]
         if len(updated) == len(ideas):
             return False
-        SAVED_IDEAS_PATH.write_text(json.dumps(updated, indent=2))
+        _write_local_json(SAVED_IDEAS_PATH, updated)
         return True
+
+
+def _restrict_local_file(path: Path) -> None:
+    """Keep locally stored search content readable only by this user when possible."""
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
+def _write_local_json(path: Path, data: list[dict]) -> None:
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _restrict_local_file(path)
 
 
 def _saved_idea_summary(item: dict) -> dict:
@@ -254,6 +270,9 @@ def _start_job(topic: str, signal_mode: str, custom_signals: list[str]) -> dict:
 
 
 class ProblemRadarHandler(SimpleHTTPRequestHandler):
+    server_version = "ProblemRadar"
+    sys_version = ""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
@@ -268,6 +287,35 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def end_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "connect-src 'self'; "
+            "img-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+        )
+        super().end_headers()
+
+    def _read_json_body(self) -> dict:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as error:
+            raise ValueError("Invalid request size.") from error
+        if length < 0 or length > MAX_REQUEST_BODY_BYTES:
+            raise ValueError("Request is too large.")
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        if not isinstance(payload, dict):
+            raise ValueError("Request data must be an object.")
+        return payload
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -302,8 +350,7 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
         if path not in {"/api/search", "/api/saved"}:
             return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length) or b"{}")
+            payload = self._read_json_body()
             if path == "/api/saved":
                 item, created = _save_idea(_clean_saved_idea(payload))
                 return self._json(HTTPStatus.CREATED if created else HTTPStatus.OK, {"item": _saved_idea_summary(item), "created": created})
@@ -346,7 +393,8 @@ class LocalServer(ThreadingHTTPServer):
     def server_bind(self) -> None:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(self.server_address)
-        self.server_name, self.server_port = self.server_address
+        self.server_address = self.socket.getsockname()
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 def main() -> None:
