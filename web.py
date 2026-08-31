@@ -123,6 +123,7 @@ def _saved_idea_summary(item: dict) -> dict:
         "id": item.get("id"),
         "key": item.get("key"),
         "topic": item.get("topic", ""),
+        "source": item.get("source", "reddit"),
         "title": problem.get("title", "Untitled opportunity"),
         "description": problem.get("description", ""),
         "opportunity_score": problem.get("opportunity_score", 0),
@@ -148,6 +149,7 @@ def _clean_saved_idea(payload: dict) -> dict:
         "id": uuid.uuid4().hex,
         "key": _idea_key(topic, problem),
         "topic": topic,
+        "source": _clean_source(payload.get("source")),
         "signal_mode": str(payload.get("signal_mode", "basic")),
         "signals": [str(signal) for signal in signals[:3]],
         "saved_at": datetime.now(UTC).isoformat(),
@@ -160,6 +162,7 @@ def _summary(item: dict) -> dict:
     return {
         "id": item["id"],
         "topic": item["topic"],
+        "source": item.get("source", "reddit"),
         "created_at": item["created_at"],
         "problem_count": len(item.get("problems", [])),
         "signal_mode": item.get("signal_mode", "basic"),
@@ -198,7 +201,14 @@ def _clean_search_options(payload: dict) -> tuple[str, list[str]]:
     return mode, signals
 
 
-def run_radar(topic: str, signal_mode: str = "basic", custom_signals: list[str] | None = None, on_status=None) -> dict:
+def _clean_source(value: object) -> str:
+    source = str(value or "reddit").lower()
+    if source != "reddit":
+        raise ValueError("Reddit is the only available source right now.")
+    return source
+
+
+def run_radar(topic: str, source: str = "reddit", signal_mode: str = "basic", custom_signals: list[str] | None = None, on_status=None) -> dict:
     """Run the existing pipeline and report only milestones that actually occur."""
     def update(stage: str, **details) -> None:
         if on_status:
@@ -210,15 +220,15 @@ def run_radar(topic: str, signal_mode: str = "basic", custom_signals: list[str] 
         keywords = expand_topic_keywords_via_api(topic)[:3]
         keyword_source = "Gemini-generated signals" if os.environ.get("GEMINI_API_KEY") else "Built-in problem signals"
         update("searching", message="Searching discussions with Smart signals…", signal_mode=signal_mode, keywords=keywords, keyword_source=keyword_source)
-        posts = search_reddit_for_problem_signals(topic, limit=50, keywords=keywords, allow_broad_fallback=False)
+        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False)
     elif signal_mode == "custom":
         keywords = custom_signals
         update("searching", message="Searching discussions with your focus terms…", signal_mode=signal_mode, keywords=keywords, keyword_source="Your focus terms")
-        posts = search_reddit_for_problem_signals(topic, limit=50, keywords=keywords, allow_broad_fallback=False)
+        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False)
     else:
         keywords = []
         update("searching", message="Searching Reddit discussions about this topic…", signal_mode=signal_mode)
-        posts = search_reddit_posts(topic, limit=50, delay_seconds=0.0)
+        posts = search_reddit_posts(topic, limit=75, delay_seconds=0.0)
     if not posts:
         raise RuntimeError(f'No relevant Reddit discussions were found for "{topic}". Try another lens.')
 
@@ -230,6 +240,7 @@ def run_radar(topic: str, signal_mode: str = "basic", custom_signals: list[str] 
     return {
         "id": uuid.uuid4().hex,
         "topic": topic,
+        "source": source,
         "signal_mode": signal_mode,
         "signals": keywords,
         "created_at": datetime.now(UTC).isoformat(),
@@ -244,12 +255,12 @@ def _set_job(job_id: str, **updates) -> None:
             JOBS[job_id].update(updates)
 
 
-def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str]) -> None:
+def _run_job(job_id: str, topic: str, source: str, signal_mode: str, custom_signals: list[str]) -> None:
     def progress(stage: str, **details) -> None:
         _set_job(job_id, status="running", stage=stage, **details)
 
     try:
-        result = run_radar(topic, signal_mode=signal_mode, custom_signals=custom_signals, on_status=progress)
+        result = run_radar(topic, source=source, signal_mode=signal_mode, custom_signals=custom_signals, on_status=progress)
         _save_history(result)
         _set_job(job_id, status="complete", stage="complete", result=result)
     except (ValueError, RuntimeError) as error:
@@ -258,14 +269,14 @@ def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str
         _set_job(job_id, status="failed", stage="failed", error="Problem Radar could not complete this search. Check the server terminal for details.")
 
 
-def _start_job(topic: str, signal_mode: str, custom_signals: list[str]) -> dict:
+def _start_job(topic: str, source: str, signal_mode: str, custom_signals: list[str]) -> dict:
     job_id = uuid.uuid4().hex
-    job = {"id": job_id, "topic": topic, "signal_mode": signal_mode, "keywords": custom_signals if signal_mode == "custom" else [], "status": "queued", "stage": "queued", "message": "Preparing your radar…"}
+    job = {"id": job_id, "topic": topic, "source": source, "signal_mode": signal_mode, "keywords": custom_signals if signal_mode == "custom" else [], "status": "queued", "stage": "queued", "message": "Preparing your search…"}
     with JOBS_LOCK:
         if any(existing["status"] in {"queued", "running"} for existing in JOBS.values()):
             raise SearchInProgressError("A radar is already running. Wait for it to finish before starting another search.")
         JOBS[job_id] = job
-    threading.Thread(target=_run_job, args=(job_id, topic, signal_mode, custom_signals), daemon=True).start()
+    threading.Thread(target=_run_job, args=(job_id, topic, source, signal_mode, custom_signals), daemon=True).start()
     return job
 
 
@@ -355,8 +366,9 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
                 item, created = _save_idea(_clean_saved_idea(payload))
                 return self._json(HTTPStatus.CREATED if created else HTTPStatus.OK, {"item": _saved_idea_summary(item), "created": created})
             topic = _clean_topic(payload.get("topic"))
+            source = _clean_source(payload.get("source"))
             signal_mode, custom_signals = _clean_search_options(payload)
-            job = _start_job(topic, signal_mode, custom_signals)
+            job = _start_job(topic, source, signal_mode, custom_signals)
             return self._json(HTTPStatus.ACCEPTED, job)
         except SearchInProgressError as error:
             return self._json(HTTPStatus.CONFLICT, {"error": str(error)})

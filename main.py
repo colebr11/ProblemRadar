@@ -72,7 +72,7 @@ def cmd_generate(
     if use_signals:
         target = f"r/{subreddit}" if subreddit else "all Reddit"
         print(f"Searching for problem signals around: '{query}' ({target})...")
-        posts = search_reddit_for_problem_signals(query, limit=50, subreddit=subreddit)
+        posts = search_reddit_for_problem_signals(query, limit=75, subreddit=subreddit)
     else:
         target = f" in r/{subreddit}" if subreddit else ""
         print(f"Searching Reddit for query: '{query}'{target}...")
@@ -164,7 +164,7 @@ def cmd_run(
     if use_signals:
         target = f"r/{subreddit}" if subreddit else "all Reddit"
         print(f"Searching for problem signals around: '{query}' ({target})...")
-        posts = search_reddit_for_problem_signals(query, limit=50, subreddit=subreddit)
+        posts = search_reddit_for_problem_signals(query, limit=75, subreddit=subreddit)
     else:
         target = f" in r/{subreddit}" if subreddit else ""
         print(f"Searching Reddit for query: '{query}'{target}...")

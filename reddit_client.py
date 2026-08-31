@@ -41,6 +41,7 @@ DEFAULT_USER_AGENT = "problem-radar-poc/0.1 (personal non-commercial project)"
 RSS_REQUEST_LOCK = threading.Lock()
 LAST_RSS_REQUEST_AT = 0.0
 MIN_RSS_REQUEST_INTERVAL_SECONDS = 5.0
+DEFAULT_SEARCH_LIMIT = 75
 
 
 def _strip_html(raw_html: str) -> str:
@@ -170,7 +171,7 @@ def _parse_entries(root: ElementTree.Element) -> list[Post]:
 
 def search_reddit_posts(
     query: str,
-    limit: int = 50,
+    limit: int = DEFAULT_SEARCH_LIMIT,
     sort: str = "relevance",
     subreddit: str | None = None,
     user_agent: str = DEFAULT_USER_AGENT,
@@ -223,26 +224,52 @@ def search_reddit_posts(
 
 
 def build_problem_query(topic: str, keywords: list[str] | None = None) -> str:
-    """Build a single high-intent Boolean query combining title matching with problem keywords."""
+    """Build one high-intent query without requiring a title match.
+
+    Pain is frequently described in a self-post's body while its title is a
+    short question or an indirect summary. Keeping the topic phrase unscoped
+    allows Reddit to match either field, while the Boolean signal clause still
+    keeps the single RSS request focused on problem discussions.
+    """
     kw_list = keywords or DEFAULT_PROBLEM_KEYWORDS
-    or_clause = " OR ".join(f'"{kw}"' for kw in kw_list)
-    return f'title:"{topic}" ({or_clause})'
+    clean_topic = topic.replace('"', " ").strip()
+    clean_keywords = [keyword.replace('"', " ").strip() for keyword in kw_list]
+    clean_keywords = [keyword for keyword in clean_keywords if keyword]
+    or_clause = " OR ".join(f'"{keyword}"' for keyword in clean_keywords)
+    return f'"{clean_topic}" ({or_clause})'
+
+
+def _problem_relevance_score(post: Post, topic: str, keywords: list[str]) -> int:
+    """Prioritize clear pain signals within the one RSS result set."""
+    title = post.title.casefold()
+    body = post.body.casefold()
+    topic_terms = [term for term in re.findall(r"[\w'-]+", topic.casefold()) if len(term) > 2]
+
+    score = sum(4 for term in topic_terms if term in title)
+    score += sum(1 for term in topic_terms if term in body)
+    for keyword in keywords:
+        term = keyword.casefold()
+        if term in title:
+            score += 5
+        if term in body:
+            score += 2
+    return score
 
 
 def search_reddit_for_problem_signals(
     topic: str,
-    limit: int = 50,
+    limit: int = DEFAULT_SEARCH_LIMIT,
     keywords: list[str] | None = None,
     sort: str = "relevance",
     subreddit: str | None = None,
     user_agent: str = DEFAULT_USER_AGENT,
     delay_seconds: float = 0.0,
-    allow_broad_fallback: bool = True,
+    allow_broad_fallback: bool = False,
 ) -> list[Post]:
     """
     Higher-level search in ONE single HTTP request: combines topic with
-    frustration/need keywords into a single Boolean OR query. This usually
-    reduces requests and the likelihood of rate limiting (HTTP 429).
+    frustration/need keywords into a single Boolean OR query. It ranks the
+    returned posts locally; it does not issue any follow-up requests.
     """
     if keywords is None:
         print(f"Generating dynamic problem signals for topic: {topic!r}")
@@ -258,14 +285,14 @@ def search_reddit_for_problem_signals(
         user_agent=user_agent,
         delay_seconds=delay_seconds,
     )
+    posts.sort(key=lambda post: _problem_relevance_score(post, topic, keywords), reverse=True)
 
-    # Single-word topics combined with a strict title: match can be overly
-    # narrow and starve the result set. If the signal query came back thin,
-    # fall back to a broader plain-text search on the topic alone so callers
-    # don't end up with an empty (or near-empty) dataset.
+    # Compatibility escape hatch for callers that explicitly accept a second
+    # request. It is disabled by default to avoid doubling anonymous RSS
+    # traffic and increasing the chance of a Reddit HTTP 429 response.
     if allow_broad_fallback and len(topic.strip().split()) == 1 and len(posts) < 15:
         print(
-            f"Strict signal search came back thin ({len(posts)} posts) for "
+            f"Signal search came back thin ({len(posts)} posts) for "
             f"single-word topic {topic!r}; falling back to a broad search."
         )
         posts = search_reddit_posts(

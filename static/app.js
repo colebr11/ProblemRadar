@@ -41,10 +41,10 @@ function renderHome() {
     ${header('', 'menu', '<button type="button" class="saved-nav" data-action="saved"><span aria-hidden="true">★</span>Saved ideas</button>')}
     <div class="hero">
       <div class="hero-copy"><p class="eyebrow">Opportunity Finder</p><h1>What problems are worth solving?</h1></div>
-      <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic, problem, or keyword…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
-        <div class="search-options"><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
+      <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic or problem…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
+        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><fieldset class="source-picker"><legend>Source</legend><label><input type="radio" name="source" value="reddit" checked /><span>Reddit</span></label><small>More sources coming soon</small></fieldset><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
           <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra Gemini request</em></label>
-        </div>
+        </div></details>
       </form>
       <section class="examples"><p>Popular radars this week</p><div>${exampleTopics.map(topic => `<button type="button" class="topic-pill" data-topic="${topic}">${topic}</button>`).join('')}</div></section>
     </div>
@@ -79,9 +79,10 @@ function renderResults() {
   const problems = currentResult.problems || [];
   const signalMode = currentResult.signal_mode || 'basic';
   const signalLabel = signalMode === 'smart' ? 'Smart signals' : signalMode === 'custom' ? 'Custom terms' : 'Basic search';
+  const sourceLabel = 'Reddit';
   const signals = currentResult.signals || [];
   return `<section class="screen results-screen">${header('Opportunities', 'home', button('icon-button', 'upload', 'Share results', 'share'))}
-    <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${signalLabel}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
+    <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${sourceLabel}</span><span>${signalLabel}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
     <div class="result-list">${problems.length ? problems.map((problem, index) => `<div class="result-entry">${problemCard(problem, index, false, activeProblem === problem)}${activeProblem === problem ? renderProblemDetails(problem, false, index) : closingProblem === problem ? renderProblemDetails(problem, true, index) : ''}</div>`).join('') : renderEmptyState()}</div>
   </section>`;
 }
@@ -98,7 +99,8 @@ function renderEvidence(problem) {
   return `<ul class="evidence-list">${posts.map(post => {
     const url = safeExternalUrl(post.url);
     const label = escapeHtml(post.title || post.subreddit || 'Reddit discussion');
-    return `<li>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>` : label} ${post.subreddit ? `<span>r/${escapeHtml(post.subreddit)}</span>` : ''}</li>`;
+    const source = post.subreddit ? `r/${post.subreddit}` : 'Reddit';
+    return `<li>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>` : label} <span>${escapeHtml(source)}</span></li>`;
   }).join('')}</ul>`;
 }
 
@@ -154,7 +156,7 @@ function bindEvents() {
     const data = new FormData(event.currentTarget);
     const customSignals = String(data.get('custom-signals') || '').split(',').map(term => term.trim()).filter(Boolean);
     const signalMode = data.get('smart-signals') ? 'smart' : customSignals.length ? 'custom' : 'basic';
-    startSearch(data.get('topic'), { signalMode, customSignals });
+    startSearch(data.get('topic'), { source: data.get('source'), signalMode, customSignals });
   });
   document.querySelector('[name="smart-signals"]')?.addEventListener('change', event => {
     const input = document.querySelector('[name="custom-signals"]');
@@ -196,7 +198,7 @@ function handleAction(action) {
     document.querySelector(action === 'add-focus-terms' ? '[name="custom-signals"]' : '#topic')?.focus();
     return;
   }
-  if (action === 'try-smart') { startSearch(currentResult?.topic, { signalMode: 'smart' }); return; }
+  if (action === 'try-smart') { startSearch(currentResult?.topic, { source: currentResult?.source, signalMode: 'smart' }); return; }
   if (action === 'share') navigator.share?.({ title: 'Problem Radar', text: `Opportunities in ${currentResult.topic}` });
 }
 
@@ -210,12 +212,13 @@ async function startSearch(topic, options = {}) {
   topic = String(topic || '').trim();
   if (!topic) return document.querySelector('#topic')?.focus();
   homeTopic = topic;
+  const source = options.source || 'reddit';
   const signalMode = options.signalMode || 'basic';
   const customSignals = options.customSignals || [];
-  currentResult = { topic, job: { stage: 'queued', signal_mode: signalMode, keywords: signalMode === 'custom' ? customSignals : [], message: 'Preparing your search…' } };
+  currentResult = { topic, job: { stage: 'queued', source, signal_mode: signalMode, keywords: signalMode === 'custom' ? customSignals : [], message: 'Preparing your search…' } };
   view = 'loading'; render();
   try {
-    const response = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic, signal_mode: signalMode, custom_signals: customSignals }) });
+    const response = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic, source, signal_mode: signalMode, custom_signals: customSignals }) });
     const job = await response.json();
     if (!response.ok) throw new Error(job.error || 'Search failed.');
     await watchJob(job.id);
@@ -259,7 +262,7 @@ async function saveProblem(index) {
   const problem = currentResult?.problems?.[index];
   if (!problem) return;
   try {
-    const response = await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: currentResult.topic, signal_mode: currentResult.signal_mode, signals: currentResult.signals, problem, posts: currentResult.posts || [] }) });
+    const response = await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: currentResult.topic, source: currentResult.source, signal_mode: currentResult.signal_mode, signals: currentResult.signals, problem, posts: currentResult.posts || [] }) });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Unable to save that idea.');
     savedIdeas = [payload.item, ...savedIdeas.filter(item => item.key !== payload.item.key)];
@@ -272,7 +275,7 @@ async function openSavedIdea(id) {
     const response = await fetch(`/api/saved/${encodeURIComponent(id)}`);
     if (!response.ok) throw new Error();
     const saved = await response.json();
-    currentResult = { id: `saved:${saved.id}`, topic: saved.topic, signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
+    currentResult = { id: `saved:${saved.id}`, topic: saved.topic, source: saved.source || 'reddit', signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
     activeProblem = null;
     view = 'results';
     render();

@@ -24,7 +24,7 @@ from typing import Optional
 
 from models import Post, Problem
 
-DEFAULT_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_MODEL = "gemini-3.6-flash"
 DEFAULT_PROBLEM_KEYWORDS = ["wish", "track", "annoying", "alternative", "recommend", "frustrating", "hate"]
 
 SYSTEM_PROMPT = """You are an analyst for "Problem Radar", a tool that reads online \
@@ -73,6 +73,7 @@ software opportunity, considering recurrence, pain level, and whether existing \
 workarounds are clearly inadequate
   - "score_reasoning": 1-3 sentences explaining the opportunity_score
 
+Return no more than 5 objects, ordered from strongest to weakest opportunity. \
 Respond with ONLY a JSON array of these objects. No markdown code fences, no \
 preamble, no commentary, no trailing text. If you find zero recurring problems, \
 respond with an empty JSON array: []
@@ -113,6 +114,11 @@ def parse_response(raw_text: str) -> list[Problem]:
         if text.startswith("json"):
             text = text[4:]
         text = text.strip()
+
+    # Gemini occasionally escapes field-name underscores despite JSON mode.
+    # ``\_`` is not a valid JSON escape sequence, so normalize this harmless
+    # formatting artifact before parsing the otherwise-valid response.
+    text = text.replace("\\_", "_")
 
     try:
         data = json.loads(text)
@@ -158,10 +164,13 @@ def expand_topic_keywords_via_api(topic: str, api_key: str | None = None) -> lis
 
         # Enforce short single words or 2-word pain signals (no full phrases)
         prompt = (
-            f"Give me 3 single words or short 2-word terms real people use when expressing "
-            f"frustration, workflow friction, or unmet software needs regarding the topic: '{topic}'.\n"
-            f"Examples for 'cooking': [\"recipes\", \"planner\", \"shopping\"]\n"
-            f"Return ONLY a JSON array of 3 short strings. Do NOT return full app search phrases."
+            f"For this topic, return exactly 3 short terms people are likely to use in "
+            f"Reddit posts when describing a frustrating, repeated problem that software "
+            f"could plausibly improve. Favor pain, friction, failed workarounds, or unmet "
+            f"software needs—not broad topic categories or app features. Each term must be "
+            f"one or two words and likely to appear in a post title or body.\n\n"
+            f"Topic: '{topic}'\n"
+            f"Return ONLY a JSON array of 3 strings."
         )
 
         response = client.models.generate_content(
@@ -245,7 +254,10 @@ def analyze_posts_via_api_raw(
     except (AttributeError, IndexError, TypeError):
         finish_reason = None
 
-    if finish_reason is not None and str(finish_reason).upper() in ("MAX_TOKENS", "FINISH_REASON_MAX_TOKENS", "2"):
+    finish_reason_text = str(finish_reason).upper()
+    if finish_reason is not None and (
+        "MAX_TOKENS" in finish_reason_text or finish_reason_text == "2"
+    ):
         raise RuntimeError(
             f"Gemini's response was truncated (hit max_output_tokens={max_tokens}) "
             "before finishing the JSON array. Increase max_tokens (e.g. "

@@ -39,9 +39,9 @@ export GEMINI_API_KEY="your_api_key_here"
 python3 main.py run "apartment hunting"
 ```
 
-The `run` command keeps the posts, prompt, and Gemini response in memory. It
-prints the result to the console and does not create `posts.json`, `prompt.txt`,
-or archive files.
+The `run` command keeps up to 75 posts, the prompt, and Gemini response in
+memory. It prints the result to the console and does not create `posts.json`,
+`prompt.txt`, or archive files.
 
 ### Local web UI
 
@@ -64,7 +64,14 @@ The browser offers three search lenses:
 - **Custom** — up to three user-entered refinement terms for a more focused
   Reddit query.
 - **Smart** — Gemini chooses up to three topic-specific search signals before
-  Reddit is searched. This uses one extra Gemini request.
+  Reddit is searched. It favors terms associated with repeated, software-solvable
+  pain points. This uses one extra Gemini request; Reddit searches still use
+  only one RSS request.
+
+The app keeps source selection in its interface so additional consumer sources
+can be added later. Reddit is the active source today. Source, Custom terms,
+and Smart Signals are grouped under the collapsible **Advanced search tools**
+section on the home screen.
 
 The loading screen shows actual pipeline stages and the Custom or Smart terms
 being used. Completed searches are saved locally in
@@ -95,17 +102,18 @@ python3 main.py run "apartment hunting" --json
 
 ## How it works
 
-1. Problem Radar searches Reddit’s public RSS feeds for posts about a topic.
+1. Problem Radar searches Reddit’s public RSS feeds for up to 75 posts about a
+   topic.
 2. It sends the posts to Gemini, or creates a prompt for you to use with an
    LLM manually.
-3. Gemini returns only recurring problems for which software can meaningfully
-   address the core outcome; it excludes primarily physical, policy, or
-   compliance problems.
+3. Gemini returns up to five recurring problems for which software can
+   meaningfully address the core outcome; it excludes primarily physical,
+   policy, or compliance problems.
 4. Problem Radar ranks the opportunities and presents the results in the CLI
    or browser UI.
 
 The automated workflow uses the default model configured in `analyzer.py`:
-`gemini-3.1-flash-lite`.
+`gemini-3.6-flash`.
 
 ## Project files
 
@@ -121,8 +129,8 @@ The automated workflow uses the default model configured in `analyzer.py`:
 
 ## Notes
 
-- Reddit search results and availability can vary, and anonymous RSS requests
-  can be rate-limited.
+- Each radar makes one Reddit RSS request. Results can still be rate-limited
+  by Reddit, so the app does not send follow-up Reddit searches automatically.
 - The manual workflow does not need an API key or third-party Python package.
 - The automated workflow requires the `google-genai` package and a Gemini API
   key.
