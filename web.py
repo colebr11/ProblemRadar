@@ -8,11 +8,15 @@ HTTP adapter around the same Reddit search and Gemini analysis functions.
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
 import re
 import socket
 import threading
+import time
 import uuid
+from collections import deque
 from dataclasses import asdict
 from datetime import UTC, datetime
 from http import HTTPStatus
@@ -20,154 +24,55 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from analyzer import analyze_posts_via_api, expand_topic_keywords_via_api
+from analyzer import DEFAULT_MODEL, analyze_posts_via_api, expand_topic_keywords_via_api
 from reddit_client import search_reddit_for_problem_signals, search_reddit_posts
 
 
 ROOT = Path(__file__).parent
 STATIC_DIR = ROOT / "static"
-HISTORY_PATH = ROOT / "problem_radar_history.json"
-SAVED_IDEAS_PATH = ROOT / "problem_radar_saved_ideas.json"
 MAX_REQUEST_BODY_BYTES = 1_000_000
-HISTORY_LOCK = threading.Lock()
-SAVED_IDEAS_LOCK = threading.Lock()
+SEARCH_LIMIT_COUNT = 3
+SEARCH_LIMIT_WINDOW_SECONDS = 15 * 60
+JOB_RETENTION_SECONDS = 15 * 60
+ANALYSIS_MODELS = {
+    "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
+    "gemini-3.6-flash": "Gemini 3.6 Flash",
+    "gemini-3.7-flash": "Gemini 3.7 Flash",
+}
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
+SEARCH_ATTEMPTS: dict[str, deque[float]] = {}
+SEARCH_ATTEMPTS_LOCK = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 class SearchInProgressError(RuntimeError):
     """Raised when a browser user tries to overlap anonymous RSS searches."""
 
 
-def _load_history() -> list[dict]:
-    try:
-        data = json.loads(HISTORY_PATH.read_text())
-        _restrict_local_file(HISTORY_PATH)
-        return data if isinstance(data, list) else []
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+class SearchRateLimitError(RuntimeError):
+    """Raised when a visitor has used the public demo's recent search allowance."""
+
+    def __init__(self, retry_after_seconds: int):
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__("The public demo's current search allowance has been reached.")
 
 
-def _save_history(item: dict) -> None:
-    with HISTORY_LOCK:
-        history = _load_history()
-        history = [existing for existing in history if existing.get("id") != item["id"]]
-        history.insert(0, item)
-        # Keep local history small; every entry includes its original evidence.
-        _write_local_json(HISTORY_PATH, history[:20])
+def _record_search_attempt(client_id: str, now: float | None = None) -> None:
+    """Allow a small number of recent searches per visitor without retaining account data."""
+    current_time = time.monotonic() if now is None else now
+    with SEARCH_ATTEMPTS_LOCK:
+        for identifier, attempts in list(SEARCH_ATTEMPTS.items()):
+            while attempts and current_time - attempts[0] >= SEARCH_LIMIT_WINDOW_SECONDS:
+                attempts.popleft()
+            if not attempts:
+                del SEARCH_ATTEMPTS[identifier]
 
-
-def _delete_history(entry_id: str) -> bool:
-    """Remove one locally saved radar and report whether it existed."""
-    with HISTORY_LOCK:
-        history = _load_history()
-        updated = [item for item in history if item.get("id") != entry_id]
-        if len(updated) == len(history):
-            return False
-        _write_local_json(HISTORY_PATH, updated)
-        return True
-
-
-def _load_saved_ideas() -> list[dict]:
-    try:
-        data = json.loads(SAVED_IDEAS_PATH.read_text())
-        _restrict_local_file(SAVED_IDEAS_PATH)
-        return data if isinstance(data, list) else []
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
-
-
-def _idea_key(topic: str, problem: dict) -> str:
-    title = re.sub(r"\s+", " ", str(problem.get("title", "")).strip()).casefold()
-    return f"{topic.casefold()}::{title}"
-
-
-def _save_idea(item: dict) -> tuple[dict, bool]:
-    """Store one full opportunity snapshot locally, without duplicating it."""
-    with SAVED_IDEAS_LOCK:
-        ideas = _load_saved_ideas()
-        existing = next((idea for idea in ideas if idea.get("key") == item["key"]), None)
-        if existing:
-            return existing, False
-        ideas.insert(0, item)
-        _write_local_json(SAVED_IDEAS_PATH, ideas[:50])
-        return item, True
-
-
-def _delete_saved_idea(idea_id: str) -> bool:
-    with SAVED_IDEAS_LOCK:
-        ideas = _load_saved_ideas()
-        updated = [idea for idea in ideas if idea.get("id") != idea_id]
-        if len(updated) == len(ideas):
-            return False
-        _write_local_json(SAVED_IDEAS_PATH, updated)
-        return True
-
-
-def _restrict_local_file(path: Path) -> None:
-    """Keep locally stored search content readable only by this user when possible."""
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
-
-
-def _write_local_json(path: Path, data: list[dict]) -> None:
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    _restrict_local_file(path)
-
-
-def _saved_idea_summary(item: dict) -> dict:
-    problem = item.get("problem", {})
-    return {
-        "id": item.get("id"),
-        "key": item.get("key"),
-        "topic": item.get("topic", ""),
-        "source": item.get("source", "reddit"),
-        "title": problem.get("title", "Untitled opportunity"),
-        "description": problem.get("description", ""),
-        "opportunity_score": problem.get("opportunity_score", 0),
-        "saved_at": item.get("saved_at"),
-    }
-
-
-def _clean_saved_idea(payload: dict) -> dict:
-    topic = _clean_topic(payload.get("topic"))
-    problem = payload.get("problem")
-    if not isinstance(problem, dict):
-        raise ValueError("Choose an opportunity to save.")
-    title = re.sub(r"\s+", " ", str(problem.get("title", "")).strip())
-    if not title or len(title) > 300:
-        raise ValueError("That opportunity cannot be saved.")
-    posts = payload.get("posts", [])
-    if not isinstance(posts, list):
-        posts = []
-    signals = payload.get("signals", [])
-    if not isinstance(signals, list):
-        signals = []
-    return {
-        "id": uuid.uuid4().hex,
-        "key": _idea_key(topic, problem),
-        "topic": topic,
-        "source": _clean_source(payload.get("source")),
-        "signal_mode": str(payload.get("signal_mode", "basic")),
-        "signals": [str(signal) for signal in signals[:3]],
-        "saved_at": datetime.now(UTC).isoformat(),
-        "problem": problem,
-        "posts": posts,
-    }
-
-
-def _summary(item: dict) -> dict:
-    return {
-        "id": item["id"],
-        "topic": item["topic"],
-        "source": item.get("source", "reddit"),
-        "created_at": item["created_at"],
-        "problem_count": len(item.get("problems", [])),
-        "signal_mode": item.get("signal_mode", "basic"),
-        "signals": item.get("signals", []),
-    }
+        attempts = SEARCH_ATTEMPTS.setdefault(client_id, deque())
+        if len(attempts) >= SEARCH_LIMIT_COUNT:
+            retry_after = max(1, math.ceil(SEARCH_LIMIT_WINDOW_SECONDS - (current_time - attempts[0])))
+            raise SearchRateLimitError(retry_after)
+        attempts.append(current_time)
 
 
 def _clean_topic(value: object) -> str:
@@ -201,14 +106,38 @@ def _clean_search_options(payload: dict) -> tuple[str, list[str]]:
     return mode, signals
 
 
-def _clean_source(value: object) -> str:
-    source = str(value or "reddit").lower()
-    if source != "reddit":
-        raise ValueError("Reddit is the only available source right now.")
-    return source
+def _clean_model(value: object) -> str:
+    model = str(value or DEFAULT_MODEL).strip()
+    if model not in ANALYSIS_MODELS:
+        raise ValueError("Choose one of the available Gemini analysis models.")
+    return model
 
 
-def run_radar(topic: str, source: str = "reddit", signal_mode: str = "basic", custom_signals: list[str] | None = None, on_status=None) -> dict:
+def _is_quota_error(error: Exception) -> bool:
+    """Recognize Gemini's 429 RESOURCE_EXHAUSTED quota/rate-limit responses."""
+    message = str(error).casefold()
+    return (
+        "resource_exhausted" in message
+        or "quota exceeded" in message
+        or "check quota" in message
+        or "rate limit" in message
+        or "429" in message
+    )
+
+
+def _is_model_busy_error(error: Exception) -> bool:
+    """Recognize Gemini's temporary 503 high-demand responses."""
+    message = str(error).casefold()
+    return "503" in message and ("unavailable" in message or "high demand" in message)
+
+
+def run_radar(
+    topic: str,
+    signal_mode: str = "basic",
+    custom_signals: list[str] | None = None,
+    model: str = DEFAULT_MODEL,
+    on_status=None,
+) -> dict:
     """Run the existing pipeline and report only milestones that actually occur."""
     def update(stage: str, **details) -> None:
         if on_status:
@@ -217,7 +146,7 @@ def run_radar(topic: str, source: str = "reddit", signal_mode: str = "basic", cu
     custom_signals = custom_signals or []
     if signal_mode == "smart":
         update("signals", message="Choosing topic-specific search signals…", signal_mode=signal_mode)
-        keywords = expand_topic_keywords_via_api(topic)[:3]
+        keywords = expand_topic_keywords_via_api(topic, model=model)[:3]
         keyword_source = "Gemini-generated signals" if os.environ.get("GEMINI_API_KEY") else "Built-in problem signals"
         update("searching", message="Searching discussions with Smart signals…", signal_mode=signal_mode, keywords=keywords, keyword_source=keyword_source)
         posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False)
@@ -233,18 +162,18 @@ def run_radar(topic: str, source: str = "reddit", signal_mode: str = "basic", cu
         raise RuntimeError(f'No relevant Reddit discussions were found for "{topic}". Try another lens.')
 
     update("analyzing", message="Analyzing recurring software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=len(posts))
-    problems = analyze_posts_via_api(posts)
+    problems = analyze_posts_via_api(posts, model=model)
     problems.sort(key=lambda problem: problem.opportunity_score, reverse=True)
     update("ranking", message="Ranking software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=len(posts))
 
     return {
         "id": uuid.uuid4().hex,
         "topic": topic,
-        "source": source,
+        "model": model,
         "signal_mode": signal_mode,
         "signals": keywords,
         "created_at": datetime.now(UTC).isoformat(),
-        "problems": [asdict(problem) for problem in problems[:5]],
+        "problems": [asdict(problem) for problem in problems[:3]],
         "posts": [asdict(post) for post in posts],
     }
 
@@ -252,31 +181,67 @@ def run_radar(topic: str, source: str = "reddit", signal_mode: str = "basic", cu
 def _set_job(job_id: str, **updates) -> None:
     with JOBS_LOCK:
         if job_id in JOBS:
+            if updates.get("status") in {"complete", "failed"}:
+                updates["finished_at"] = time.monotonic()
             JOBS[job_id].update(updates)
 
 
-def _run_job(job_id: str, topic: str, source: str, signal_mode: str, custom_signals: list[str]) -> None:
+def _prune_finished_jobs_locked(now: float | None = None) -> None:
+    """Discard completed in-memory jobs after the browser has had time to collect them."""
+    current_time = time.monotonic() if now is None else now
+    for job_id, job in list(JOBS.items()):
+        finished_at = job.get("finished_at")
+        if (
+            job.get("status") in {"complete", "failed"}
+            and isinstance(finished_at, (int, float))
+            and current_time - finished_at >= JOB_RETENTION_SECONDS
+        ):
+            del JOBS[job_id]
+
+
+def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str], model: str) -> None:
     def progress(stage: str, **details) -> None:
         _set_job(job_id, status="running", stage=stage, **details)
 
     try:
-        result = run_radar(topic, source=source, signal_mode=signal_mode, custom_signals=custom_signals, on_status=progress)
-        _save_history(result)
+        result = run_radar(topic, signal_mode=signal_mode, custom_signals=custom_signals, model=model, on_status=progress)
         _set_job(job_id, status="complete", stage="complete", result=result)
     except (ValueError, RuntimeError) as error:
-        _set_job(job_id, status="failed", stage="failed", error=str(error))
+        if _is_quota_error(error):
+            _set_job(
+                job_id,
+                status="failed",
+                stage="failed",
+                error_type="quota",
+                error="Gemini has reached a limit for this model right now.",
+            )
+        elif _is_model_busy_error(error):
+            _set_job(
+                job_id,
+                status="failed",
+                stage="failed",
+                error_type="model_busy",
+                error="Gemini is temporarily busy for this model.",
+            )
+        else:
+            _set_job(job_id, status="failed", stage="failed", error=str(error))
     except Exception:
-        _set_job(job_id, status="failed", stage="failed", error="Problem Radar could not complete this search. Check the server terminal for details.")
+        # Keep implementation details out of the public response while preserving
+        # the traceback in local or Render logs for diagnosis.
+        logger.exception("Radar job failed (job_id=%s, model=%s)", job_id, model)
+        _set_job(job_id, status="failed", stage="failed", error="Problem Radar could not complete this search. Try again in a moment.")
 
 
-def _start_job(topic: str, source: str, signal_mode: str, custom_signals: list[str]) -> dict:
+def _start_job(topic: str, signal_mode: str, custom_signals: list[str], model: str, client_id: str) -> dict:
     job_id = uuid.uuid4().hex
-    job = {"id": job_id, "topic": topic, "source": source, "signal_mode": signal_mode, "keywords": custom_signals if signal_mode == "custom" else [], "status": "queued", "stage": "queued", "message": "Preparing your search…"}
+    job = {"id": job_id, "topic": topic, "model": model, "signal_mode": signal_mode, "keywords": custom_signals if signal_mode == "custom" else [], "status": "queued", "stage": "queued", "message": "Preparing your search…"}
     with JOBS_LOCK:
+        _prune_finished_jobs_locked()
         if any(existing["status"] in {"queued", "running"} for existing in JOBS.values()):
             raise SearchInProgressError("A radar is already running. Wait for it to finish before starting another search.")
+        _record_search_attempt(client_id)
         JOBS[job_id] = job
-    threading.Thread(target=_run_job, args=(job_id, topic, source, signal_mode, custom_signals), daemon=True).start()
+    threading.Thread(target=_run_job, args=(job_id, topic, signal_mode, custom_signals, model), daemon=True).start()
     return job
 
 
@@ -328,27 +293,19 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
             raise ValueError("Request data must be an object.")
         return payload
 
+    def _client_id(self) -> str:
+        """Use the visitor address Render forwards; fall back to the direct client address locally."""
+        forwarded_for = self.headers.get("X-Forwarded-For", "")
+        if forwarded_for:
+            return forwarded_for.split(",", 1)[0].strip()
+        return self.client_address[0]
+
     def do_GET(self) -> None:
         path = urlparse(self.path).path
-        if path == "/api/history":
-            return self._json(HTTPStatus.OK, [_summary(item) for item in _load_history()])
-        if path == "/api/saved":
-            return self._json(HTTPStatus.OK, [_saved_idea_summary(item) for item in _load_saved_ideas()])
-        if path.startswith("/api/saved/"):
-            idea_id = unquote(path.removeprefix("/api/saved/"))
-            item = next((idea for idea in _load_saved_ideas() if idea.get("id") == idea_id), None)
-            if item is None:
-                return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved idea is no longer available."})
-            return self._json(HTTPStatus.OK, item)
-        if path.startswith("/api/history/"):
-            entry_id = unquote(path.removeprefix("/api/history/"))
-            item = next((entry for entry in _load_history() if entry.get("id") == entry_id), None)
-            if item is None:
-                return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved radar is no longer available."})
-            return self._json(HTTPStatus.OK, item)
         if path.startswith("/api/jobs/"):
             job_id = unquote(path.removeprefix("/api/jobs/"))
             with JOBS_LOCK:
+                _prune_finished_jobs_locked()
                 job = JOBS.get(job_id)
                 payload = dict(job) if job else None
             if payload is None:
@@ -358,49 +315,41 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path not in {"/api/search", "/api/saved"}:
+        if path != "/api/search":
             return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
         try:
             payload = self._read_json_body()
-            if path == "/api/saved":
-                item, created = _save_idea(_clean_saved_idea(payload))
-                return self._json(HTTPStatus.CREATED if created else HTTPStatus.OK, {"item": _saved_idea_summary(item), "created": created})
             topic = _clean_topic(payload.get("topic"))
-            source = _clean_source(payload.get("source"))
             signal_mode, custom_signals = _clean_search_options(payload)
-            job = _start_job(topic, source, signal_mode, custom_signals)
+            model = _clean_model(payload.get("model"))
+            job = _start_job(topic, signal_mode, custom_signals, model, self._client_id())
             return self._json(HTTPStatus.ACCEPTED, job)
+        except SearchRateLimitError as error:
+            return self._json(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                {
+                    "error": str(error),
+                    "error_type": "rate_limit",
+                    "retry_after": error.retry_after_seconds,
+                },
+            )
         except SearchInProgressError as error:
             return self._json(HTTPStatus.CONFLICT, {"error": str(error)})
         except (ValueError, RuntimeError) as error:
             return self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
         except Exception:
+            logger.exception("Could not start a radar job")
             return self._json(
                 HTTPStatus.INTERNAL_SERVER_ERROR,
-                {"error": "Problem Radar could not complete this search. Check the server terminal for details."},
+                {"error": "Problem Radar could not complete this search. Try again in a moment."},
             )
 
     def do_DELETE(self) -> None:
-        path = urlparse(self.path).path
-        if path.startswith("/api/saved/"):
-            idea_id = unquote(path.removeprefix("/api/saved/"))
-            if not idea_id:
-                return self._json(HTTPStatus.BAD_REQUEST, {"error": "Choose a saved idea to remove."})
-            if not _delete_saved_idea(idea_id):
-                return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved idea is no longer available."})
-            return self._json(HTTPStatus.OK, {"deleted": True})
-        if not path.startswith("/api/history/"):
-            return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
-        entry_id = unquote(path.removeprefix("/api/history/"))
-        if not entry_id:
-            return self._json(HTTPStatus.BAD_REQUEST, {"error": "Choose a saved radar to remove."})
-        if not _delete_history(entry_id):
-            return self._json(HTTPStatus.NOT_FOUND, {"error": "That saved radar is no longer available."})
-        return self._json(HTTPStatus.OK, {"deleted": True})
+        return self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
 
 
 class LocalServer(ThreadingHTTPServer):
-    """Avoid a reverse-DNS lookup when binding a loopback-only development server."""
+    """Avoid a reverse-DNS lookup when binding the local or hosted server."""
 
     def server_bind(self) -> None:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -409,9 +358,25 @@ class LocalServer(ThreadingHTTPServer):
         self.server_name, self.server_port = self.server_address[:2]
 
 
+def _server_address() -> tuple[str, int]:
+    """Use Render's public binding when it supplies a port; stay loopback-only locally."""
+    render_port = os.environ.get("PORT")
+    if render_port:
+        return "0.0.0.0", int(render_port)
+    return "127.0.0.1", 8000
+
+
 def main() -> None:
-    server = LocalServer(("127.0.0.1", 8000), ProblemRadarHandler)
-    print("Problem Radar is ready at http://127.0.0.1:8000")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    host, port = _server_address()
+    server = LocalServer((host, port), ProblemRadarHandler)
+    if host == "127.0.0.1":
+        print("Problem Radar is ready at http://127.0.0.1:8000")
+    else:
+        print(f"Problem Radar is ready on port {port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

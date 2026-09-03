@@ -9,6 +9,18 @@ let drawerOpen = false;
 let view = 'home';
 let aboutReturnView = 'home';
 let homeTopic = '';
+let homeModel = 'gemini-3.6-flash';
+
+const analysisModels = {
+  'gemini-3.1-flash-lite': 'Gemini 3.1 Flash-Lite',
+  'gemini-3.6-flash': 'Gemini 3.6 Flash',
+  'gemini-3.7-flash': 'Gemini 3.7 Flash',
+};
+const defaultModel = 'gemini-3.6-flash';
+const historyStorageKey = 'problem-radar-history-v1';
+const savedIdeasStorageKey = 'problem-radar-saved-ideas-v1';
+const maxHistoryItems = 20;
+const maxSavedIdeas = 50;
 
 const icon = (name, label = '') => `<img src="assets/${name}.svg" alt="${label}" />`;
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -18,6 +30,34 @@ const safeExternalUrl = (value) => {
     return url.protocol === 'https:' || url.protocol === 'http:' ? escapeHtml(url.href) : '';
   } catch { return ''; }
 };
+
+function readStoredList(key, isValidItem) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(stored) ? stored.filter(isValidItem) : [];
+  } catch { return []; }
+}
+
+function writeStoredList(key, items) {
+  try { localStorage.setItem(key, JSON.stringify(items)); return true; } catch { return false; }
+}
+
+function isHistoryItem(item) {
+  return item && typeof item === 'object' && typeof item.id === 'string' && typeof item.topic === 'string' && Array.isArray(item.problems) && Array.isArray(item.posts);
+}
+
+function isSavedIdea(item) {
+  return item && typeof item === 'object' && typeof item.id === 'string' && typeof item.key === 'string' && typeof item.topic === 'string' && item.problem && typeof item.problem === 'object';
+}
+
+function localId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function formatWait(seconds) {
+  const minutes = Math.max(1, Math.ceil(Number(seconds || 0) / 60));
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
 
 function button(className, iconName, label, action) {
   return `<button class="${className}" type="button" aria-label="${label}" data-action="${action}">${icon(iconName)}</button>`;
@@ -42,7 +82,7 @@ function renderHome() {
     <div class="hero">
       <div class="hero-copy"><p class="eyebrow">Opportunity Finder</p><h1>What problems are worth solving?</h1></div>
       <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic or problem…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
-        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><fieldset class="source-picker"><legend>Source</legend><label><input type="radio" name="source" value="reddit" checked /><span>Reddit</span></label><small>More sources coming soon</small></fieldset><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
+        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.7-flash" ${homeModel === 'gemini-3.7-flash' ? 'selected' : ''}>Gemini 3.7 Flash — Stronger</option><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — Balanced</option><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Faster</option></select><small>Used for analysis and Smart signals</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
           <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra Gemini request</em></label>
         </div></details>
       </form>
@@ -79,10 +119,10 @@ function renderResults() {
   const problems = currentResult.problems || [];
   const signalMode = currentResult.signal_mode || 'basic';
   const signalLabel = signalMode === 'smart' ? 'Smart signals' : signalMode === 'custom' ? 'Custom terms' : 'Basic search';
-  const sourceLabel = 'Reddit';
+  const modelLabel = analysisModels[currentResult.model] || analysisModels[defaultModel];
   const signals = currentResult.signals || [];
   return `<section class="screen results-screen">${header('Opportunities', 'home', button('icon-button', 'upload', 'Share results', 'share'))}
-    <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${sourceLabel}</span><span>${signalLabel}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
+    <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${signalLabel}</span><span>${escapeHtml(modelLabel)}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
     <div class="result-list">${problems.length ? problems.map((problem, index) => `<div class="result-entry">${problemCard(problem, index, false, activeProblem === problem)}${activeProblem === problem ? renderProblemDetails(problem, false, index) : closingProblem === problem ? renderProblemDetails(problem, true, index) : ''}</div>`).join('') : renderEmptyState()}</div>
   </section>`;
 }
@@ -126,7 +166,7 @@ function renderDetail() {
 
 function renderSavedIdeas() {
   return `<section class="screen saved-screen">${header('Saved ideas', 'home')}
-    <div class="screen-copy"><p class="eyebrow">Your shortlist</p><h1>Ideas worth revisiting</h1><p>${savedIdeas.length ? 'Saved opportunities stay here even if you clear your search history.' : 'Bookmark a promising software opportunity to build your shortlist.'}</p></div>
+    <div class="screen-copy"><p class="eyebrow">Your shortlist</p><h1>Ideas worth revisiting</h1><p>${savedIdeas.length ? 'Saved opportunities stay here even if you clear your search history.' : 'Bookmark a promising software opportunity to build your shortlist.'}</p><small class="storage-note">Stored in this browser · Up to 50 saved ideas. New saves replace the oldest when full.</small></div>
     <div class="saved-list">${savedIdeas.length ? savedIdeas.map(item => `<article class="saved-idea"><button type="button" class="saved-idea-open" data-open-saved="${item.id}"><span class="saved-topic">${escapeHtml(item.topic)}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.description || 'Open saved opportunity')}</small><span class="saved-score">${Number(item.opportunity_score || 0)}<em>/100</em></span></button><button type="button" class="remove-saved" data-delete-saved="${item.id}" aria-label="Remove ${escapeHtml(item.title)} from saved ideas">×</button></article>`).join('') : '<section class="saved-empty"><span aria-hidden="true">☆</span><h2>No saved ideas yet</h2><p>Open a result and choose “Save idea” to keep its full opportunity analysis here.</p><button type="button" data-action="home">Explore opportunities</button></section>'}</div>
   </section>`;
 }
@@ -137,17 +177,27 @@ function renderAbout() {
       <section class="about-section"><h2>What happens in a radar</h2><ol class="process-list"><li><b>1</b><span><strong>Choose a search lens</strong><small>Enter a topic, then optionally add Custom terms or use Smart signals.</small></span></li><li><b>2</b><span><strong>Find relevant discussions</strong><small>Problem Radar searches public Reddit conversations related to that lens.</small></span></li><li><b>3</b><span><strong>Identify recurring problems</strong><small>Gemini looks for themes that appear across multiple discussions.</small></span></li><li><b>4</b><span><strong>Rank software opportunities</strong><small>The strongest recurring themes are presented as opportunities to explore.</small></span></li></ol></section>
       <section class="about-section rating-section"><h2>How ratings work</h2><p>A rating is an estimate, not a guarantee. Gemini considers how often a problem appears, how painful it seems, who experiences it, current workarounds, and whether software could credibly improve the outcome.</p><div class="rating-note"><strong>A higher score means</strong><span>Stronger evidence of a recurring, painful problem with a clearer software opportunity.</span></div></section>
       <section class="about-section"><h2>How to get better results</h2><p>Start with a specific topic. Use Custom terms when you want to focus the discussion, or Smart signals when you want Gemini to choose a more tailored search lens.</p></section>
-      <section class="about-section about-limit"><h2>Keep in mind</h2><p>Results depend on the Reddit discussions available and Gemini’s analysis. Use a radar as a starting point for validation, not as proof of market demand.</p></section>
+      <section class="about-section"><h2>Choose your analysis model</h2><p>Under Advanced search tools, you can select the Gemini model used to choose Smart signals and analyze the discussions. Each completed radar records the model used, so you can compare results later.</p></section>
+      <section class="about-section about-limit"><h2>Keep in mind</h2><p>Results depend on the Reddit discussions available and Gemini’s analysis. Use a radar as a starting point for validation, not as proof of market demand. To keep the public demo available, each visitor can run up to 3 searches every 15 minutes.</p></section>
     </div>
   </section>`;
 }
 
 function renderError() {
+  const rateLimited = currentResult?.errorType === 'rate_limit';
+  const quotaError = currentResult?.errorType === 'quota';
+  const modelBusy = currentResult?.errorType === 'model_busy';
+  const modelLabel = analysisModels[currentResult?.model] || analysisModels[defaultModel];
+  if (rateLimited) return `<section class="screen error-screen">${header('Demo limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">◌</span><h1>Take a quick breather</h1><p>Problem Radar allows 3 searches every 15 minutes to keep the public demo available. Try again in about ${escapeHtml(formatWait(currentResult?.retryAfter))}.</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
+  if (quotaError) {
+    return `<section class="screen error-screen">${header('Gemini limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>That model needs a breather</h1><p>${escapeHtml(modelLabel)} has reached its current Gemini limit. Your topic is still saved below—try a different model or come back in a little while.</p><button class="primary-button" type="button" data-action="switch-model">Switch model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
+  }
+  if (modelBusy) return `<section class="screen error-screen">${header('Gemini is busy', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>That model is busy right now</h1><p>${escapeHtml(modelLabel)} is experiencing high demand. Your topic is still saved below—try a different model or come back in a few minutes.</p><button class="primary-button" type="button" data-action="switch-model">Switch model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
   return `<section class="screen error-screen">${header('Problem Radar', 'home')}<div class="message-panel"><h1>That radar didn’t complete</h1><p>${escapeHtml(currentResult?.error || 'Try again in a moment.')}</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
 }
 
 function renderDrawer() {
-  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${item.id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}</span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${item.id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
+  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${item.id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}<small>${escapeHtml(analysisModels[item.model] || analysisModels[defaultModel])}</small></span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${item.id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><p class="storage-note history-storage-note">Stored in this browser · Up to 20 radars. New searches replace the oldest when full.</p><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
 }
 
 function bindEvents() {
@@ -156,7 +206,7 @@ function bindEvents() {
     const data = new FormData(event.currentTarget);
     const customSignals = String(data.get('custom-signals') || '').split(',').map(term => term.trim()).filter(Boolean);
     const signalMode = data.get('smart-signals') ? 'smart' : customSignals.length ? 'custom' : 'basic';
-    startSearch(data.get('topic'), { source: data.get('source'), signalMode, customSignals });
+    startSearch(data.get('topic'), { signalMode, customSignals, model: data.get('model') });
   });
   document.querySelector('[name="smart-signals"]')?.addEventListener('change', event => {
     const input = document.querySelector('[name="custom-signals"]');
@@ -191,6 +241,16 @@ function handleAction(action) {
   if (action === 'saved') { view = 'saved'; render(); return; }
   if (action === 'about') { aboutReturnView = view; drawerOpen = false; view = 'about'; render(); return; }
   if (action === 'about-back') { view = aboutReturnView; render(); return; }
+  if (action === 'switch-model') {
+    homeTopic = currentResult?.topic || '';
+    homeModel = analysisModels[currentResult?.model] ? currentResult.model : defaultModel;
+    view = 'home';
+    render();
+    const tools = document.querySelector('.advanced-tools');
+    if (tools) tools.open = true;
+    document.querySelector('[name="model"]')?.focus();
+    return;
+  }
   if (action === 'edit-topic' || action === 'add-focus-terms') {
     homeTopic = currentResult?.topic || '';
     view = 'home';
@@ -198,31 +258,40 @@ function handleAction(action) {
     document.querySelector(action === 'add-focus-terms' ? '[name="custom-signals"]' : '#topic')?.focus();
     return;
   }
-  if (action === 'try-smart') { startSearch(currentResult?.topic, { source: currentResult?.source, signalMode: 'smart' }); return; }
+  if (action === 'try-smart') { startSearch(currentResult?.topic, { signalMode: 'smart', model: currentResult?.model }); return; }
   if (action === 'share') navigator.share?.({ title: 'Problem Radar', text: `Opportunities in ${currentResult.topic}` });
 }
 
-async function loadHistory() {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
-  try { history = await fetch('/api/history', { signal: controller.signal }).then(response => response.ok ? response.json() : []); } catch { history = []; } finally { clearTimeout(timeout); }
+function loadHistory() {
+  history = readStoredList(historyStorageKey, isHistoryItem).slice(0, maxHistoryItems);
+}
+
+function saveHistory(item) {
+  history = [item, ...history.filter(existing => existing.id !== item.id)].slice(0, maxHistoryItems);
+  writeStoredList(historyStorageKey, history);
 }
 
 async function startSearch(topic, options = {}) {
   topic = String(topic || '').trim();
   if (!topic) return document.querySelector('#topic')?.focus();
   homeTopic = topic;
-  const source = options.source || 'reddit';
   const signalMode = options.signalMode || 'basic';
   const customSignals = options.customSignals || [];
-  currentResult = { topic, job: { stage: 'queued', source, signal_mode: signalMode, keywords: signalMode === 'custom' ? customSignals : [], message: 'Preparing your search…' } };
+  const model = analysisModels[options.model] ? options.model : defaultModel;
+  homeModel = model;
+  currentResult = { topic, model, job: { stage: 'queued', model, signal_mode: signalMode, keywords: signalMode === 'custom' ? customSignals : [], message: 'Preparing your search…' } };
   view = 'loading'; render();
   try {
-    const response = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic, source, signal_mode: signalMode, custom_signals: customSignals }) });
+    const response = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic, model, signal_mode: signalMode, custom_signals: customSignals }) });
     const job = await response.json();
-    if (!response.ok) throw new Error(job.error || 'Search failed.');
+    if (!response.ok) {
+      const error = new Error(job.error || 'Search failed.');
+      error.type = job.error_type;
+      error.retryAfter = job.retry_after;
+      throw error;
+    }
     await watchJob(job.id);
-  } catch (error) { currentResult = { error: error.message }; view = 'error'; }
+  } catch (error) { currentResult = { topic, model, error: error.message, errorType: error.type, retryAfter: error.retryAfter }; view = 'error'; }
   render();
 }
 
@@ -231,64 +300,72 @@ async function watchJob(id) {
     const response = await fetch(`/api/jobs/${encodeURIComponent(id)}`);
     const job = await response.json();
     if (!response.ok) throw new Error(job.error || 'Search status was unavailable.');
-    if (job.status === 'failed') throw new Error(job.error || 'Search failed.');
-    if (job.status === 'complete') { currentResult = job.result; activeProblem = null; view = 'results'; loadHistory(); return; }
+    if (job.status === 'failed') {
+      const error = new Error(job.error || 'Search failed.');
+      error.type = job.error_type;
+      throw error;
+    }
+    if (job.status === 'complete') { currentResult = job.result; saveHistory(job.result); activeProblem = null; view = 'results'; return; }
     currentResult.job = job; render();
     await new Promise(resolve => setTimeout(resolve, 800));
   }
 }
 
-async function openHistory(id) {
-  try { const response = await fetch(`/api/history/${encodeURIComponent(id)}`); if (!response.ok) throw new Error(); currentResult = await response.json(); drawerOpen = false; activeProblem = null; view = 'results'; render(); } catch { await loadHistory(); render(); }
+function openHistory(id) {
+  const item = history.find(entry => entry.id === id);
+  if (!item) return;
+  currentResult = item;
+  drawerOpen = false;
+  activeProblem = null;
+  view = 'results';
+  render();
 }
 
-async function deleteHistory(id) {
-  try {
-    const response = await fetch(`/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!response.ok) throw new Error();
-    history = history.filter(item => item.id !== id);
-    render();
-  } catch {
-    await loadHistory();
-    render();
-  }
+function deleteHistory(id) {
+  history = history.filter(item => item.id !== id);
+  writeStoredList(historyStorageKey, history);
+  render();
 }
 
-async function loadSavedIdeas() {
-  try { savedIdeas = await fetch('/api/saved').then(response => response.ok ? response.json() : []); } catch { savedIdeas = []; }
+function loadSavedIdeas() {
+  savedIdeas = readStoredList(savedIdeasStorageKey, isSavedIdea).slice(0, maxSavedIdeas);
 }
 
-async function saveProblem(index) {
+function saveProblem(index) {
   const problem = currentResult?.problems?.[index];
   if (!problem) return;
-  try {
-    const response = await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: currentResult.topic, source: currentResult.source, signal_mode: currentResult.signal_mode, signals: currentResult.signals, problem, posts: currentResult.posts || [] }) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'Unable to save that idea.');
-    savedIdeas = [payload.item, ...savedIdeas.filter(item => item.key !== payload.item.key)];
-    render();
-  } catch { /* Keep the current result usable if local saving is unavailable. */ }
+  const item = {
+    id: localId(),
+    key: ideaKey(currentResult.topic, problem),
+    topic: currentResult.topic,
+    model: currentResult.model || defaultModel,
+    signal_mode: currentResult.signal_mode,
+    signals: currentResult.signals || [],
+    saved_at: new Date().toISOString(),
+    problem,
+    posts: currentResult.posts || [],
+  };
+  if (savedIdeas.some(existing => existing.key === item.key)) return;
+  savedIdeas = [item, ...savedIdeas].slice(0, maxSavedIdeas);
+  writeStoredList(savedIdeasStorageKey, savedIdeas);
+  render();
 }
 
-async function openSavedIdea(id) {
-  try {
-    const response = await fetch(`/api/saved/${encodeURIComponent(id)}`);
-    if (!response.ok) throw new Error();
-    const saved = await response.json();
-    currentResult = { id: `saved:${saved.id}`, topic: saved.topic, source: saved.source || 'reddit', signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
-    activeProblem = null;
-    view = 'results';
-    render();
-  } catch { await loadSavedIdeas(); render(); }
+function openSavedIdea(id) {
+  const saved = savedIdeas.find(item => item.id === id);
+  if (!saved) return;
+  currentResult = { id: `saved:${saved.id}`, topic: saved.topic, model: saved.model || defaultModel, signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
+  activeProblem = null;
+  view = 'results';
+  render();
 }
 
-async function deleteSavedIdea(id) {
-  try {
-    const response = await fetch(`/api/saved/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!response.ok) throw new Error();
-    savedIdeas = savedIdeas.filter(item => item.id !== id);
-    render();
-  } catch { await loadSavedIdeas(); render(); }
+function deleteSavedIdea(id) {
+  savedIdeas = savedIdeas.filter(item => item.id !== id);
+  writeStoredList(savedIdeasStorageKey, savedIdeas);
+  render();
 }
 
-Promise.all([loadHistory(), loadSavedIdeas()]).finally(render);
+loadHistory();
+loadSavedIdeas();
+render();

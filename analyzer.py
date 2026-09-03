@@ -26,6 +26,8 @@ from models import Post, Problem
 
 DEFAULT_MODEL = "gemini-3.6-flash"
 DEFAULT_PROBLEM_KEYWORDS = ["wish", "track", "annoying", "alternative", "recommend", "frustrating", "hate"]
+MAX_POST_BODY_CHARS = 1_500
+MAX_TOTAL_POST_BODY_CHARS = 60_000
 
 SYSTEM_PROMPT = """You are an analyst for "Problem Radar", a tool that reads online \
 discussion posts (Reddit threads, app reviews, forum posts) and finds RECURRING \
@@ -57,23 +59,24 @@ software fit; instead, keep the opportunity score modest when software fit is we
 For each genuinely recurring problem you find, produce an object with these exact \
 fields:
   - "title": short, specific problem title (not a generic category name)
-  - "description": 1-2 sentences clearly describing the problem
+  - "description": one concise sentence clearly describing the problem
   - "post_count": integer, number of posts in the input describing this problem
   - "representative_post_ids": list of the post ids (e.g. ["p1", "p3"]) that best \
 represent this problem — include ALL posts you assigned to this cluster
   - "who_experiences": short description of who experiences this problem
-  - "existing_workarounds": what workarounds people currently use, based on the posts
-  - "potential_solution": a specific, plausible software product that addresses the
-core problem. State the user, the product's key workflow, and how it improves on the
-current workaround. Do not repeat an existing non-software workaround.
+  - "existing_workarounds": one concise sentence about the workarounds people currently use, based on the posts
+  - "potential_solution": one concise sentence describing a specific, plausible
+software product that addresses the core problem. State the user, the product's key
+workflow, and how it improves on the current workaround. Do not repeat an existing
+non-software workaround.
   - "pain_level": integer 1-10, how painful/frustrating this problem seems based on \
 the language used in the posts
   - "opportunity_score": integer 1-100, your estimate of how promising this is as a \
 software opportunity, considering recurrence, pain level, and whether existing \
 workarounds are clearly inadequate
-  - "score_reasoning": 1-3 sentences explaining the opportunity_score
+  - "score_reasoning": one concise sentence explaining the opportunity_score
 
-Return no more than 5 objects, ordered from strongest to weakest opportunity. \
+Return no more than 3 objects, ordered from strongest to weakest opportunity. \
 Respond with ONLY a JSON array of these objects. No markdown code fences, no \
 preamble, no commentary, no trailing text. If you find zero recurring problems, \
 respond with an empty JSON array: []
@@ -81,7 +84,18 @@ respond with an empty JSON array: []
 
 
 def _build_user_prompt(posts: list[Post]) -> str:
-    posts_text = "\n\n".join(p.as_prompt_text() for p in posts)
+    remaining_body_chars = MAX_TOTAL_POST_BODY_CHARS
+    posts_text_parts = []
+    for index, post in enumerate(posts):
+        remaining_posts = len(posts) - index
+        body_limit = min(
+            MAX_POST_BODY_CHARS,
+            remaining_body_chars // remaining_posts,
+        )
+        posts_text_parts.append(post.as_prompt_text(body_limit=body_limit))
+        remaining_body_chars -= min(len(post.body), body_limit)
+
+    posts_text = "\n\n".join(posts_text_parts)
     return (
         f"Here are {len(posts)} posts to analyze:\n\n"
         f"{posts_text}\n\n"
@@ -149,7 +163,11 @@ def parse_response(raw_text: str) -> list[Problem]:
     return problems
 
 
-def expand_topic_keywords_via_api(topic: str, api_key: str | None = None) -> list[str]:
+def expand_topic_keywords_via_api(
+    topic: str,
+    model: str = DEFAULT_MODEL,
+    api_key: str | None = None,
+) -> list[str]:
     import os
 
     resolved_api_key = api_key or os.environ.get("GEMINI_API_KEY")
@@ -174,7 +192,7 @@ def expand_topic_keywords_via_api(topic: str, api_key: str | None = None) -> lis
         )
 
         response = client.models.generate_content(
-            model=DEFAULT_MODEL,
+            model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

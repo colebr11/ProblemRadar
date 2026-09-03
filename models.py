@@ -22,13 +22,16 @@ class Post:
     subreddit: Optional[str] = None
     url: Optional[str] = None
 
-    def as_prompt_text(self) -> str:
+    def as_prompt_text(self, body_limit: int | None = None) -> str:
         """Render this post as compact text for inclusion in an LLM prompt."""
         header = f"[{self.id}] source={self.source}"
         if self.subreddit:
             header += f" subreddit={self.subreddit}"
         title_line = f"Title: {self.title}\n" if self.title else ""
-        return f"{header}\n{title_line}Body: {self.body}"
+        body = self.body
+        if body_limit is not None and len(body) > body_limit:
+            body = f"{body[:body_limit].rstrip()} [truncated]"
+        return f"{header}\n{title_line}Body: {body}"
 
 
 @dataclass
