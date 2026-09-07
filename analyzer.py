@@ -24,7 +24,7 @@ from typing import Optional
 
 from models import Post, Problem
 
-DEFAULT_MODEL = "gemini-3.6-flash"
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_PROBLEM_KEYWORDS = ["wish", "track", "annoying", "alternative", "recommend", "frustrating", "hate"]
 MAX_POST_BODY_CHARS = 1_500
 MAX_TOTAL_POST_BODY_CHARS = 60_000

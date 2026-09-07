@@ -12,9 +12,10 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
 ### Gemini model choice and clearer results
 
 - Added an **Analysis model** selector under **Advanced search tools**.
-- The available choices are Gemini 3.6 Flash (the default) and Gemini 3.1
-  Flash-Lite. Gemini 3.7 Flash was removed after repeatedly returning temporary
-  high-demand errors in public-demo testing.
+- The available choices are Gemini 3.1 Flash-Lite (the faster default) and
+  Gemini 3.6 Flash for deeper analysis when available. Gemini 3.7 Flash was
+  removed after repeatedly returning temporary high-demand errors in
+  public-demo testing.
 - The selected model is used for both Smart Signals and opportunity analysis.
 - Each completed radar displays its model and retains it in History and Saved
   Ideas, making results easier to compare later.
@@ -86,13 +87,8 @@ python3 web.py
 Open `http://127.0.0.1:8000`, enter a topic, and optionally open **Advanced
 search tools** to choose a model, add Custom terms, or enable Smart Signals.
 
-## Recommended next steps
+## Follow-up status
 
-1. Deploy the browser app on Render and add `GEMINI_API_KEY` as a private
-   environment variable.
-2. Run a complete public-link testing pass: test Basic, Custom, and Smart
-   searches; complete a radar with each Gemini model; confirm the model label
-   in results and History; and verify Saved Ideas, browser refresh, and the
-   demo-limit screen. The Gemini model testing was cut short locally, so this
-   is the most important remaining validation.
-3. Capture a few polished screenshots and write the personal-project post.
+The Render deployment and public-link testing proposed at the end of Chat 5
+were completed during Chat 6. The remaining release work is documented in
+`sprints/chat6.md`.

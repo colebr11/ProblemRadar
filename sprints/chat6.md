@@ -59,8 +59,10 @@ and tightened model and rate-limit handling based on real hosted behavior.
   failures during public testing.
 - Removed it from the visible selector, browser model map, server allowlist,
   tests, and current documentation.
-- Kept Gemini 3.6 Flash as the default and Gemini 3.1 Flash-Lite as the faster
-  alternative.
+- Made Gemini 3.1 Flash-Lite the faster default after hosted testing showed
+  more frequent high-demand failures with the larger models.
+- Kept Gemini 3.6 Flash as an optional, more capable choice that may be slower
+  or temporarily unavailable.
 
 ### Correct Reddit and Gemini error attribution
 
@@ -76,9 +78,21 @@ and tightened model and rate-limit handling based on real hosted behavior.
 - Added private Render log messages that identify whether Reddit, Gemini quota,
   Gemini availability, or another stage caused a failure.
 
+### Final security and documentation review
+
+- Confirmed no API keys, passwords, or private keys are committed or present in
+  Git history.
+- Confirmed the declared dependency has no known published vulnerabilities.
+- Added explicit size and XML-declaration protections before parsing Reddit RSS
+  responses, while keeping the same one-request Reddit search behavior.
+- Prevented unexpected Gemini/parsing details from appearing in public browser
+  errors; full diagnostics remain available in private Render logs.
+- Escaped browser-storage identifiers before inserting them into HTML.
+- Updated the public README with privacy and security expectations.
+
 ## Validation
 
-- All 12 focused automated tests pass.
+- All 16 focused automated tests pass.
 - Python compilation passes for the CLI, server, analysis, Reddit client,
   models, and mock-data modules.
 - Frontend JavaScript syntax validation passes.
@@ -91,14 +105,16 @@ and tightened model and rate-limit handling based on real hosted behavior.
 - Commit `66f7b5b Finalize Problem Radar for the live demo` is pushed to `main`
   with the model cleanup, corrected error attribution, public README, and the
   initial Chat 6 summary.
-- The successful-search-only allowance and its latest tests and documentation
+- Commit `1a095d3 Count only successful demo searches` is pushed to `main` with
+  the successful-search-only allowance and its tests.
+- The Gemini 3.1 default, final security hardening, and documentation updates
   are currently local and uncommitted.
 
 ## Remaining wrap-up
 
-1. Review and test the successful-search-only allowance.
-2. Approve a final commit message, then commit and push that remaining change.
+1. Review the final local changes.
+2. Approve a final commit message, then commit and push the release update.
 3. Confirm Render automatically deploys the new commit.
-4. Run one final Basic, Custom, and Smart public-link pass with the two supported
-   Gemini models.
+4. Run one final Basic, Custom, and Smart public-link pass, using the default
+   Gemini 3.1 model and optionally checking Gemini 3.6 availability.
 5. Capture polished screenshots and publish the personal-project post.

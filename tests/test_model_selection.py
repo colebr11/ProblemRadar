@@ -3,6 +3,7 @@ import os
 from unittest.mock import patch
 
 from models import Post, Problem
+import reddit_client
 from reddit_client import RedditRateLimitError
 import analyzer
 import web
@@ -10,6 +11,8 @@ import web
 
 class ModelSelectionTests(unittest.TestCase):
     def test_rejects_models_outside_the_curated_list(self):
+        self.assertEqual(analyzer.DEFAULT_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(web._clean_model(None), "gemini-3.1-flash-lite")
         self.assertEqual(web._clean_model("gemini-3.6-flash"), "gemini-3.6-flash")
         self.assertEqual(web._clean_model("gemini-3.1-flash-lite"), "gemini-3.1-flash-lite")
         with self.assertRaises(ValueError):
@@ -164,6 +167,42 @@ class ModelSelectionTests(unittest.TestCase):
         log_exception.assert_called_once_with(
             "Radar job failed (job_id=%s, model=%s)", "test-job", "gemini-3.6-flash"
         )
+
+    def test_malformed_model_response_is_not_exposed_to_the_browser(self):
+        web.JOBS.clear()
+        web.JOBS["test-job"] = {"status": "running"}
+        private_detail = "Raw model response: private upstream content"
+        with patch.object(web, "run_radar", side_effect=ValueError(private_detail)), patch.object(
+            web.logger, "exception"
+        ):
+            web._run_job("test-job", "test topic", "basic", [], "gemini-3.1-flash-lite")
+
+        self.assertNotIn(private_detail, web.JOBS["test-job"]["error"])
+        self.assertEqual(
+            web.JOBS["test-job"]["error"],
+            "Problem Radar could not complete this search. Try again in a moment.",
+        )
+
+    def test_no_results_message_remains_user_facing(self):
+        web.JOBS.clear()
+        web.JOBS["test-job"] = {"status": "running"}
+        safe_message = 'No relevant Reddit discussions were found for "test topic". Try another lens.'
+        with patch.object(web, "run_radar", side_effect=web.NoRelevantDiscussionsError(safe_message)):
+            web._run_job("test-job", "test topic", "basic", [], "gemini-3.1-flash-lite")
+
+        self.assertEqual(web.JOBS["test-job"]["error"], safe_message)
+
+    def test_reddit_fetch_rejects_non_reddit_addresses(self):
+        with self.assertRaises(ValueError):
+            reddit_client._fetch_atom("file:///etc/passwd", "test-agent", max_retries=1)
+
+    def test_reddit_parser_rejects_oversized_or_declared_xml(self):
+        oversized = b"x" * (reddit_client.MAX_RSS_RESPONSE_BYTES + 1)
+        declared = b'<!DOCTYPE feed [<!ENTITY example "unsafe">]><feed>&example;</feed>'
+        with self.assertRaises(RuntimeError):
+            reddit_client._parse_atom_document(oversized)
+        with self.assertRaises(RuntimeError):
+            reddit_client._parse_atom_document(declared)
 
     def test_caps_each_post_and_the_full_gemini_input(self):
         posts = [

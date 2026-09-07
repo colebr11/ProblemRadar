@@ -57,6 +57,10 @@ class SearchRateLimitError(RuntimeError):
         super().__init__("The public demo's current search allowance has been reached.")
 
 
+class NoRelevantDiscussionsError(RuntimeError):
+    """A safe, user-facing result when Reddit has no useful matches."""
+
+
 def _reserve_search_attempt(client_id: str, now: float | None = None) -> float:
     """Reserve one recent-search slot until the radar succeeds or fails."""
     current_time = time.monotonic() if now is None else now
@@ -172,7 +176,9 @@ def run_radar(
         update("searching", message="Searching Reddit discussions about this topic…", signal_mode=signal_mode)
         posts = search_reddit_posts(topic, limit=75, delay_seconds=0.0)
     if not posts:
-        raise RuntimeError(f'No relevant Reddit discussions were found for "{topic}". Try another lens.')
+        raise NoRelevantDiscussionsError(
+            f'No relevant Reddit discussions were found for "{topic}". Try another lens.'
+        )
 
     update("analyzing", message="Analyzing recurring software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=len(posts))
     problems = analyze_posts_via_api(posts, model=model)
@@ -239,6 +245,9 @@ def _run_job(
             error=str(error),
             retry_after=error.retry_after_seconds,
         )
+    except NoRelevantDiscussionsError as error:
+        logger.info("No relevant discussions for radar job (job_id=%s)", job_id)
+        _set_job(job_id, status="failed", stage="failed", error=str(error))
     except (ValueError, RuntimeError) as error:
         if _is_quota_error(error):
             logger.warning("Gemini quota blocked radar job (job_id=%s, model=%s)", job_id, model)
@@ -259,8 +268,13 @@ def _run_job(
                 error="Gemini is temporarily busy for this model.",
             )
         else:
-            logger.warning("Radar job failed (job_id=%s, model=%s): %s", job_id, model, error)
-            _set_job(job_id, status="failed", stage="failed", error=str(error))
+            logger.exception("Radar job failed (job_id=%s, model=%s)", job_id, model)
+            _set_job(
+                job_id,
+                status="failed",
+                stage="failed",
+                error="Problem Radar could not complete this search. Try again in a moment.",
+            )
     except Exception:
         # Keep implementation details out of the public response while preserving
         # the traceback in local or Render logs for diagnosis.
@@ -332,7 +346,10 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
             raise ValueError("Invalid request size.") from error
         if length < 0 or length > MAX_REQUEST_BODY_BYTES:
             raise ValueError("Request is too large.")
-        payload = json.loads(self.rfile.read(length) or b"{}")
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise ValueError("Request data must be valid JSON.") from error
         if not isinstance(payload, dict):
             raise ValueError("Request data must be an object.")
         return payload
@@ -379,7 +396,7 @@ class ProblemRadarHandler(SimpleHTTPRequestHandler):
             )
         except SearchInProgressError as error:
             return self._json(HTTPStatus.CONFLICT, {"error": str(error)})
-        except (ValueError, RuntimeError) as error:
+        except ValueError as error:
             return self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
         except Exception:
             logger.exception("Could not start a radar job")
@@ -406,7 +423,8 @@ def _server_address() -> tuple[str, int]:
     """Use Render's public binding when it supplies a port; stay loopback-only locally."""
     render_port = os.environ.get("PORT")
     if render_port:
-        return "0.0.0.0", int(render_port)
+        # Render requires its assigned port to listen on every container interface.
+        return "0.0.0.0", int(render_port)  # nosec B104
     return "127.0.0.1", 8000
 
 

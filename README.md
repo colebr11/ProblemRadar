@@ -19,7 +19,8 @@ score, and links to representative discussions.
   - **Basic** searches Reddit broadly for the entered topic.
   - **Custom** adds up to three user-provided focus terms.
   - **Smart** asks Gemini to choose up to three problem-oriented search signals.
-- Gemini 3.6 Flash analysis, with Gemini 3.1 Flash-Lite as a faster alternative.
+- Gemini 3.1 Flash-Lite as the faster default, with Gemini 3.6 Flash available
+  for deeper analysis when available.
 - Up to three ranked, software-solvable opportunities per radar.
 - Expandable evidence links to the original Reddit discussions.
 - Browser-private History and Saved Ideas with no account or database required.
@@ -67,6 +68,16 @@ or enable Smart Signals.
 
 Keep `GEMINI_API_KEY` in your environment or another secret manager. Never
 commit it to the repository.
+
+### Privacy and security
+
+- Search topics are sent to Reddit Search and Google Gemini to produce results.
+  Avoid entering private or sensitive information.
+- The Gemini API key remains on the server and is never sent to the browser.
+- History and Saved Ideas stay in that browser's local storage; the app has no
+  user accounts or shared storage database.
+- The public service validates request sizes, model names, and search options,
+  and keeps unexpected technical error details in private server logs.
 
 ### Automated CLI
 
@@ -145,4 +156,5 @@ node --check static/app.js
 
 The current suite covers model validation, selected-model wiring, prompt caps,
 public-demo limits, background-job cleanup, deployment binding, safe error
-handling, and distinct Reddit and Gemini failure paths.
+handling, and distinct Reddit and Gemini failure paths. Dependency and static
+security scans are also run before public releases.

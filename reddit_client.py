@@ -27,8 +27,9 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from urllib.parse import quote
-from xml.etree import ElementTree
+from urllib.parse import quote, urlparse
+# RSS size and declarations are checked before this parser sees any bytes.
+from xml.etree import ElementTree  # nosec B405
 
 from analyzer import expand_topic_keywords_via_api, DEFAULT_PROBLEM_KEYWORDS
 from models import Post
@@ -42,6 +43,8 @@ RSS_REQUEST_LOCK = threading.Lock()
 LAST_RSS_REQUEST_AT = 0.0
 MIN_RSS_REQUEST_INTERVAL_SECONDS = 5.0
 DEFAULT_SEARCH_LIMIT = 75
+MAX_RSS_RESPONSE_BYTES = 2_000_000
+ALLOWED_RSS_HOSTS = {"reddit.com", "www.reddit.com"}
 
 
 class RedditRateLimitError(RuntimeError):
@@ -67,6 +70,17 @@ def _strip_html(raw_html: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)          # drop tags
     text = re.sub(r"\s+", " ", text).strip()        # collapse whitespace
     return text
+
+
+def _parse_atom_document(data: bytes) -> ElementTree.Element:
+    """Parse a bounded RSS document without allowing custom XML declarations."""
+    if len(data) > MAX_RSS_RESPONSE_BYTES:
+        raise RuntimeError("Reddit returned an unexpectedly large RSS response.")
+    upper_data = data.upper()
+    if b"<!DOCTYPE" in upper_data or b"<!ENTITY" in upper_data:
+        raise RuntimeError("Reddit returned an unsupported RSS document.")
+    # The bounded input has no DTD or entity declarations.
+    return ElementTree.fromstring(data)  # nosec B314
 
 
 def _extract_subreddit(link: str) -> str:
@@ -97,6 +111,9 @@ def _fetch_atom(
     fairly aggressively, so a single 429 isn't necessarily a dead end —
     waiting a bit and retrying often succeeds.
     """
+    parsed_url = urlparse(url)
+    if parsed_url.scheme != "https" or parsed_url.hostname not in ALLOWED_RSS_HOSTS:
+        raise ValueError("Reddit RSS requests must use an approved HTTPS address.")
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
 
     for attempt in range(1, max_retries + 1):
@@ -108,10 +125,12 @@ def _fetch_atom(
                 wait = MIN_RSS_REQUEST_INTERVAL_SECONDS - (time.monotonic() - LAST_RSS_REQUEST_AT)
                 if wait > 0:
                     time.sleep(wait)
-                with urllib.request.urlopen(request, timeout=15) as response:
-                    data = response.read()
+                # The address is restricted above; the explicit marker documents
+                # that validation for static security scanners.
+                with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
+                    data = response.read(MAX_RSS_RESPONSE_BYTES + 1)
                 LAST_RSS_REQUEST_AT = time.monotonic()
-            return ElementTree.fromstring(data)
+            return _parse_atom_document(data)
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 if attempt < max_retries:

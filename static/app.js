@@ -10,13 +10,13 @@ let view = 'home';
 let aboutReturnView = 'home';
 let resultsReturnView = 'home';
 let homeTopic = '';
-let homeModel = 'gemini-3.6-flash';
+let homeModel = 'gemini-3.1-flash-lite';
 
 const analysisModels = {
   'gemini-3.1-flash-lite': 'Gemini 3.1 Flash-Lite',
   'gemini-3.6-flash': 'Gemini 3.6 Flash',
 };
-const defaultModel = 'gemini-3.6-flash';
+const defaultModel = 'gemini-3.1-flash-lite';
 const historyStorageKey = 'problem-radar-history-v1';
 const savedIdeasStorageKey = 'problem-radar-saved-ideas-v1';
 const maxHistoryItems = 20;
@@ -82,7 +82,7 @@ function renderHome() {
     <div class="hero">
       <div class="hero-copy"><p class="eyebrow">Opportunity Finder</p><h1>What problems are worth solving?</h1></div>
       <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic or problem…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
-        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — Balanced</option><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Faster</option></select><small>Used for analysis and Smart signals</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
+        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Default · Faster</option><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — More capable · May be slower</option></select><small>3.1 Flash-Lite is the faster default. Choose 3.6 Flash for deeper analysis when available.</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
           <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra Gemini request</em></label>
         </div></details>
       </form>
@@ -169,7 +169,8 @@ function renderSavedIdeaCard(item) {
   const title = problem.title || item.title || 'Saved opportunity';
   const description = problem.description || item.description || 'Open saved opportunity';
   const score = Number(problem.opportunity_score ?? item.opportunity_score ?? 0);
-  return `<article class="saved-idea"><button type="button" class="saved-idea-open" data-open-saved="${item.id}"><span class="saved-topic">${escapeHtml(item.topic)}</span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small><span class="saved-score">${score}<em>/100</em></span></button><button type="button" class="remove-saved" data-delete-saved="${item.id}" aria-label="Remove ${escapeHtml(title)} from saved ideas">×</button></article>`;
+  const id = escapeHtml(item.id);
+  return `<article class="saved-idea"><button type="button" class="saved-idea-open" data-open-saved="${id}"><span class="saved-topic">${escapeHtml(item.topic)}</span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small><span class="saved-score">${score}<em>/100</em></span></button><button type="button" class="remove-saved" data-delete-saved="${id}" aria-label="Remove ${escapeHtml(title)} from saved ideas">×</button></article>`;
 }
 
 function renderSavedIdeas() {
@@ -210,7 +211,7 @@ function renderError() {
 }
 
 function renderDrawer() {
-  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${item.id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}<small>${escapeHtml(analysisModels[item.model] || analysisModels[defaultModel])}</small></span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${item.id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><p class="storage-note history-storage-note">Stored in this browser · Up to 20 radars. New searches replace the oldest when full.</p><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
+  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => { const id = escapeHtml(item.id); return `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}<small>${escapeHtml(analysisModels[item.model] || analysisModels[defaultModel])}</small></span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`; }).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><p class="storage-note history-storage-note">Stored in this browser · Up to 20 radars. New searches replace the oldest when full.</p><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
 }
 
 function bindEvents() {
