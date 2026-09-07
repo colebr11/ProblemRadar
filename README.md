@@ -100,8 +100,9 @@ titles.
 
 ## Public demo behavior
 
-- The demo allows up to three searches per network visitor in each 15-minute
-  window to protect the shared API quota.
+- The demo allows up to three successful searches per network visitor in each
+  15-minute window to protect the shared API quota. Failed searches are
+  automatically refunded and do not reduce the visitor's allowance.
 - Reddit may temporarily limit anonymous RSS searches. Problem Radar retries
   before showing a Reddit-specific recovery screen and displays Reddit's wait
   estimate when one is provided.

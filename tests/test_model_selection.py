@@ -81,14 +81,54 @@ class ModelSelectionTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(web._server_address(), ("127.0.0.1", 8000))
 
-    def test_allows_three_searches_per_fifteen_minutes(self):
+    def test_allows_three_successful_searches_per_fifteen_minutes(self):
         web.SEARCH_ATTEMPTS.clear()
         for _ in range(3):
-            web._record_search_attempt("test-visitor", now=0)
+            web._reserve_search_attempt("test-visitor", now=0)
         with self.assertRaises(web.SearchRateLimitError) as error:
-            web._record_search_attempt("test-visitor", now=0)
+            web._reserve_search_attempt("test-visitor", now=0)
         self.assertEqual(error.exception.retry_after_seconds, 900)
-        web._record_search_attempt("test-visitor", now=901)
+        web._reserve_search_attempt("test-visitor", now=901)
+
+    def test_failed_search_refunds_its_reserved_attempt(self):
+        web.JOBS.clear()
+        web.SEARCH_ATTEMPTS.clear()
+        attempt_at = web._reserve_search_attempt("test-visitor", now=10)
+        web.JOBS["test-job"] = {"status": "running"}
+
+        with patch.object(web, "run_radar", side_effect=RuntimeError("503 UNAVAILABLE: high demand")):
+            web._run_job(
+                "test-job",
+                "test topic",
+                "basic",
+                [],
+                "gemini-3.6-flash",
+                "test-visitor",
+                attempt_at,
+            )
+
+        self.assertNotIn("test-visitor", web.SEARCH_ATTEMPTS)
+        self.assertEqual(web.JOBS["test-job"]["status"], "failed")
+
+    def test_successful_search_keeps_its_reserved_attempt(self):
+        web.JOBS.clear()
+        web.SEARCH_ATTEMPTS.clear()
+        attempt_at = web._reserve_search_attempt("test-visitor", now=10)
+        web.JOBS["test-job"] = {"status": "running"}
+
+        with patch.object(web, "run_radar", return_value={"id": "result"}):
+            web._run_job(
+                "test-job",
+                "test topic",
+                "basic",
+                [],
+                "gemini-3.6-flash",
+                "test-visitor",
+                attempt_at,
+            )
+
+        self.assertEqual(list(web.SEARCH_ATTEMPTS["test-visitor"]), [10])
+        self.assertEqual(web.JOBS["test-job"]["status"], "complete")
 
     def test_discards_finished_jobs_after_fifteen_minutes(self):
         web.JOBS.clear()

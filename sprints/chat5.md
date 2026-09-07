@@ -47,7 +47,8 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
 
 ### Public-demo guardrails
 
-- Added a public-demo allowance of three searches per visitor every 15 minutes.
+- Added a public-demo allowance of three successful searches per visitor every
+  15 minutes. Failed searches automatically return their reserved slot.
 - The app shows a clear wait screen when that allowance is reached instead of a
   confusing generic failure.
 - Limited the Reddit text sent to Gemini to 1,500 body characters per post and
@@ -70,7 +71,7 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
 - Added focused automated coverage for the model allowlist, selected-model
   pipeline, output caps, input caps, rate limit, temporary-job cleanup,
   friendly Gemini errors, host-port behavior, and private error logging.
-- All 10 automated tests pass.
+- All 12 automated tests pass.
 - Manually confirmed successful radars with Gemini 3.6 Flash, including its
   model label in the results and History.
 

@@ -57,8 +57,8 @@ class SearchRateLimitError(RuntimeError):
         super().__init__("The public demo's current search allowance has been reached.")
 
 
-def _record_search_attempt(client_id: str, now: float | None = None) -> None:
-    """Allow a small number of recent searches per visitor without retaining account data."""
+def _reserve_search_attempt(client_id: str, now: float | None = None) -> float:
+    """Reserve one recent-search slot until the radar succeeds or fails."""
     current_time = time.monotonic() if now is None else now
     with SEARCH_ATTEMPTS_LOCK:
         for identifier, attempts in list(SEARCH_ATTEMPTS.items()):
@@ -72,6 +72,21 @@ def _record_search_attempt(client_id: str, now: float | None = None) -> None:
             retry_after = max(1, math.ceil(SEARCH_LIMIT_WINDOW_SECONDS - (current_time - attempts[0])))
             raise SearchRateLimitError(retry_after)
         attempts.append(current_time)
+    return current_time
+
+
+def _refund_search_attempt(client_id: str, attempt_at: float) -> None:
+    """Return a reserved slot when a radar fails before producing results."""
+    with SEARCH_ATTEMPTS_LOCK:
+        attempts = SEARCH_ATTEMPTS.get(client_id)
+        if not attempts:
+            return
+        try:
+            attempts.remove(attempt_at)
+        except ValueError:
+            return
+        if not attempts:
+            del SEARCH_ATTEMPTS[client_id]
 
 
 def _clean_topic(value: object) -> str:
@@ -197,13 +212,23 @@ def _prune_finished_jobs_locked(now: float | None = None) -> None:
             del JOBS[job_id]
 
 
-def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str], model: str) -> None:
+def _run_job(
+    job_id: str,
+    topic: str,
+    signal_mode: str,
+    custom_signals: list[str],
+    model: str,
+    client_id: str | None = None,
+    attempt_at: float | None = None,
+) -> None:
     def progress(stage: str, **details) -> None:
         _set_job(job_id, status="running", stage=stage, **details)
 
+    completed = False
     try:
         result = run_radar(topic, signal_mode=signal_mode, custom_signals=custom_signals, model=model, on_status=progress)
         _set_job(job_id, status="complete", stage="complete", result=result)
+        completed = True
     except RedditRateLimitError as error:
         logger.warning("Reddit rate-limited radar job (job_id=%s)", job_id)
         _set_job(
@@ -241,6 +266,10 @@ def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str
         # the traceback in local or Render logs for diagnosis.
         logger.exception("Radar job failed (job_id=%s, model=%s)", job_id, model)
         _set_job(job_id, status="failed", stage="failed", error="Problem Radar could not complete this search. Try again in a moment.")
+    finally:
+        if not completed and client_id is not None and attempt_at is not None:
+            _refund_search_attempt(client_id, attempt_at)
+            logger.info("Refunded failed radar attempt (job_id=%s)", job_id)
 
 
 def _start_job(topic: str, signal_mode: str, custom_signals: list[str], model: str, client_id: str) -> dict:
@@ -250,9 +279,13 @@ def _start_job(topic: str, signal_mode: str, custom_signals: list[str], model: s
         _prune_finished_jobs_locked()
         if any(existing["status"] in {"queued", "running"} for existing in JOBS.values()):
             raise SearchInProgressError("A radar is already running. Wait for it to finish before starting another search.")
-        _record_search_attempt(client_id)
+        attempt_at = _reserve_search_attempt(client_id)
         JOBS[job_id] = job
-    threading.Thread(target=_run_job, args=(job_id, topic, signal_mode, custom_signals, model), daemon=True).start()
+    threading.Thread(
+        target=_run_job,
+        args=(job_id, topic, signal_mode, custom_signals, model, client_id, attempt_at),
+        daemon=True,
+    ).start()
     return job
 
 

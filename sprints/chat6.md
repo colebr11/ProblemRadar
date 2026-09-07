@@ -49,6 +49,9 @@ and tightened model and rate-limit handling based on real hosted behavior.
 - Confirmed browser privacy is separate from the server-side search allowance:
   incognito windows on the same network still share the network visitor's
   three-search limit.
+- Updated that allowance to count only successful radars. A slot is reserved
+  while a search runs and automatically refunded if Reddit, Gemini, an empty
+  result, or another error prevents the radar from completing.
 
 ### Model cleanup
 
@@ -75,7 +78,7 @@ and tightened model and rate-limit handling based on real hosted behavior.
 
 ## Validation
 
-- All 10 focused automated tests pass.
+- All 12 focused automated tests pass.
 - Python compilation passes for the CLI, server, analysis, Reddit client,
   models, and mock-data modules.
 - Frontend JavaScript syntax validation passes.
@@ -83,18 +86,18 @@ and tightened model and rate-limit handling based on real hosted behavior.
 
 ## Git and deployment status
 
-- Commit `91183ed Fix saved ideas flow and remove legacy storage` is pushed to
-  `main` and is the version initially deployed on Render.
-- The Gemini 3.7 removal, corrected Reddit/Gemini error attribution, new error
-  screen, expanded logging, test updates, and final documentation changes are
-  currently local and intentionally uncommitted for review.
-- The live Render service will not receive those final local changes until they
-  are approved, committed, and pushed.
+- Commit `91183ed Fix saved ideas flow and remove legacy storage` was the first
+  version deployed on Render.
+- Commit `66f7b5b Finalize Problem Radar for the live demo` is pushed to `main`
+  with the model cleanup, corrected error attribution, public README, and the
+  initial Chat 6 summary.
+- The successful-search-only allowance and its latest tests and documentation
+  are currently local and uncommitted.
 
 ## Remaining wrap-up
 
-1. Review the final README and Chat 6 summary.
-2. Approve a final commit message, then commit and push the remaining changes.
+1. Review and test the successful-search-only allowance.
+2. Approve a final commit message, then commit and push that remaining change.
 3. Confirm Render automatically deploys the new commit.
 4. Run one final Basic, Custom, and Smart public-link pass with the two supported
    Gemini models.
