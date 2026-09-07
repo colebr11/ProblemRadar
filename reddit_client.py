@@ -22,6 +22,9 @@ analyzer.py needs to change to use this instead.
 from __future__ import annotations
 
 import html
+import math
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import re
 import threading
 import time
@@ -41,6 +44,10 @@ ATOM_NS = "{http://www.w3.org/2005/Atom}"
 DEFAULT_USER_AGENT = "problem-radar-poc/0.1 (personal non-commercial project)"
 RSS_REQUEST_LOCK = threading.Lock()
 LAST_RSS_REQUEST_AT = 0.0
+RSS_COOLDOWN_UNTIL = 0.0
+RSS_FALLBACK_WAIT_SECONDS = 65
+RSS_RESET_BUFFER_SECONDS = 2
+MAX_RSS_WAIT_SECONDS = 150
 MIN_RSS_REQUEST_INTERVAL_SECONDS = 5.0
 DEFAULT_SEARCH_LIMIT = 75
 MAX_RSS_RESPONSE_BYTES = 2_000_000
@@ -56,12 +63,22 @@ class RedditRateLimitError(RuntimeError):
 
 
 def _retry_after_seconds(error: urllib.error.HTTPError) -> int | None:
-    """Return Reddit's numeric Retry-After estimate when one is available."""
-    value = error.headers.get("Retry-After") if error.headers else None
-    try:
-        return max(1, int(float(value)))
-    except (TypeError, ValueError):
-        return None
+    """Read both Reddit reset headers, honoring the longer valid estimate."""
+    estimates = []
+    for name in ("Retry-After", "X-Ratelimit-Reset"):
+        value = error.headers.get(name) if error.headers else None
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            try:
+                if name != "Retry-After" or not value:
+                    continue
+                seconds = (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, OverflowError):
+                continue
+        if math.isfinite(seconds) and seconds >= 0:
+            estimates.append(math.ceil(seconds))
+    return max(estimates) if estimates else None
 
 
 def _strip_html(raw_html: str) -> str:
@@ -103,46 +120,53 @@ def _fetch_atom(
     url: str,
     user_agent: str,
     max_retries: int = 3,
-    backoff_seconds: float = 8.0,
+    on_status=None,
 ) -> ElementTree.Element:
-    """
-    Fetch and parse a Reddit atom feed, retrying with backoff if Reddit
-    rate-limits us (HTTP 429). Anonymous RSS traffic gets rate-limited
-    fairly aggressively, so a single 429 isn't necessarily a dead end —
-    waiting a bit and retrying often succeeds.
-    """
+    """Honor a process-wide Reddit cooldown with bounded retries and waiting."""
+    global LAST_RSS_REQUEST_AT, RSS_COOLDOWN_UNTIL
     parsed_url = urlparse(url)
     if parsed_url.scheme != "https" or parsed_url.hostname not in ALLOWED_RSS_HOSTS:
         raise ValueError("Reddit RSS requests must use an approved HTTPS address.")
     request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            # RSS is anonymous and rate-limited. Serialize requests in this
-            # process and leave a real gap between them, including fallbacks.
-            global LAST_RSS_REQUEST_AT
-            with RSS_REQUEST_LOCK:
-                wait = MIN_RSS_REQUEST_INTERVAL_SECONDS - (time.monotonic() - LAST_RSS_REQUEST_AT)
-                if wait > 0:
-                    time.sleep(wait)
-                # The address is restricted above; the explicit marker documents
-                # that validation for static security scanners.
-                with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
-                    data = response.read(MAX_RSS_RESPONSE_BYTES + 1)
-                LAST_RSS_REQUEST_AT = time.monotonic()
-            return _parse_atom_document(data)
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                if attempt < max_retries:
-                    wait = backoff_seconds * attempt  # 8s, 16s, 24s...
-                    print(f"    (rate-limited, waiting {wait:.0f}s before retry {attempt + 1}/{max_retries})")
-                    time.sleep(wait)
-                    continue
-                raise RedditRateLimitError(_retry_after_seconds(e)) from e
-            raise RuntimeError(f"Reddit returned HTTP {e.code} for {url}") from e
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"Could not reach Reddit: {e.reason}") from e
-
+    deadline = time.monotonic() + MAX_RSS_WAIT_SECONDS
+    attempts = 0
+    while attempts < max_retries:
+        with RSS_REQUEST_LOCK:
+            now = time.monotonic()
+            wait = max(RSS_COOLDOWN_UNTIL, LAST_RSS_REQUEST_AT + MIN_RSS_REQUEST_INTERVAL_SECONDS) - now
+            if wait > 0:
+                if now + wait > deadline:
+                    raise RedditRateLimitError(math.ceil(wait))
+                if on_status:
+                    seconds = math.ceil(wait)
+                    unit = "second" if seconds == 1 else "seconds"
+                    message = (f"Reddit is limiting searches. Retrying in {seconds} {unit}…"
+                               if RSS_COOLDOWN_UNTIL > now else "Preparing the next Reddit search…")
+                    on_status("searching", message=message)
+            else:
+                attempts += 1
+                if on_status:
+                    on_status("searching", message="Searching Reddit discussions…")
+                try:
+                    # Only approved HTTPS Reddit addresses are accepted above.
+                    with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
+                        data = response.read(MAX_RSS_RESPONSE_BYTES + 1)
+                    LAST_RSS_REQUEST_AT = time.monotonic()
+                    return _parse_atom_document(data)
+                except urllib.error.HTTPError as error:
+                    LAST_RSS_REQUEST_AT = time.monotonic()
+                    if error.code != 429:
+                        raise RuntimeError(f"Reddit returned HTTP {error.code} for {url}") from error
+                    estimate = _retry_after_seconds(error)
+                    wait = (estimate + RSS_RESET_BUFFER_SECONDS
+                            if estimate is not None else RSS_FALLBACK_WAIT_SECONDS)
+                    RSS_COOLDOWN_UNTIL = LAST_RSS_REQUEST_AT + wait
+                    if attempts >= max_retries or RSS_COOLDOWN_UNTIL > deadline:
+                        raise RedditRateLimitError(math.ceil(wait)) from error
+                except urllib.error.URLError as error:
+                    raise RuntimeError(f"Could not reach Reddit: {error.reason}") from error
+        # Release the lock so all waiting jobs can report the shared countdown.
+        time.sleep(min(1.0, max(0.01, wait)))
     raise RuntimeError("Unexpected: retry loop exited without returning or raising")
 
 
@@ -208,6 +232,7 @@ def search_reddit_posts(
     subreddit: str | None = None,
     user_agent: str = DEFAULT_USER_AGENT,
     delay_seconds: float = 5.0,
+    on_status=None,
 ) -> list[Post]:
     """
     Search Reddit for `query` and return up to `limit` posts as Post objects.
@@ -246,7 +271,7 @@ def search_reddit_posts(
             f"?q={encoded_query}&sort={sort}&limit={request_limit}"
         )
 
-    root = _fetch_atom(url, user_agent)
+    root = _fetch_atom(url, user_agent, on_status=on_status)
     posts = _parse_entries(root)
 
     if delay_seconds:
@@ -297,6 +322,7 @@ def search_reddit_for_problem_signals(
     user_agent: str = DEFAULT_USER_AGENT,
     delay_seconds: float = 0.0,
     allow_broad_fallback: bool = False,
+    on_status=None,
 ) -> list[Post]:
     """
     Higher-level search in ONE single HTTP request: combines topic with
@@ -316,6 +342,7 @@ def search_reddit_for_problem_signals(
         subreddit=subreddit,
         user_agent=user_agent,
         delay_seconds=delay_seconds,
+        on_status=on_status,
     )
     posts.sort(key=lambda post: _problem_relevance_score(post, topic, keywords), reverse=True)
 
@@ -334,6 +361,7 @@ def search_reddit_for_problem_signals(
             subreddit=subreddit,
             user_agent=user_agent,
             delay_seconds=delay_seconds,
+            on_status=on_status,
         )
 
     return posts

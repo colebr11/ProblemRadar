@@ -166,15 +166,15 @@ def run_radar(
         keywords = expand_topic_keywords_via_api(topic, model=model)[:3]
         keyword_source = "Gemini-generated signals" if os.environ.get("GEMINI_API_KEY") else "Built-in problem signals"
         update("searching", message="Searching discussions with Smart signals…", signal_mode=signal_mode, keywords=keywords, keyword_source=keyword_source)
-        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False)
+        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False, on_status=update)
     elif signal_mode == "custom":
         keywords = custom_signals
         update("searching", message="Searching discussions with your focus terms…", signal_mode=signal_mode, keywords=keywords, keyword_source="Your focus terms")
-        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False)
+        posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False, on_status=update)
     else:
         keywords = []
         update("searching", message="Searching Reddit discussions about this topic…", signal_mode=signal_mode)
-        posts = search_reddit_posts(topic, limit=75, delay_seconds=0.0)
+        posts = search_reddit_posts(topic, limit=75, delay_seconds=0.0, on_status=update)
     if not posts:
         raise NoRelevantDiscussionsError(
             f'No relevant Reddit discussions were found for "{topic}". Try another lens.'

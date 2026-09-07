@@ -115,8 +115,11 @@ titles.
   15-minute window to protect the shared API quota. Failed searches are
   automatically refunded and do not reduce the visitor's allowance.
 - Reddit may temporarily limit anonymous RSS searches. Problem Radar retries
-  before showing a Reddit-specific recovery screen and displays Reddit's wait
-  estimate when one is provided.
+  using Reddit’s reset estimate plus a small buffer, or 65 seconds when no
+  estimate is available. A live countdown appears while waiting, and all searches
+  in the server process respect the cooldown. Requests are limited to three
+  attempts with a 150-second scheduling budget; longer waits show the
+  Reddit-specific recovery screen instead.
 - Gemini quota and temporary high-demand errors have separate recovery screens.
 - History stores up to 20 completed radars and Saved Ideas stores up to 50
   opportunities. New items replace the oldest when a collection is full.
@@ -149,7 +152,7 @@ titles.
 ## Validation
 
 ```bash
-python3 -m unittest tests/test_model_selection.py
+python3 -m unittest discover -s tests
 python3 -m py_compile main.py web.py analyzer.py reddit_client.py models.py mock_data.py
 node --check static/app.js
 ```
