@@ -15,7 +15,6 @@ let homeModel = 'gemini-3.6-flash';
 const analysisModels = {
   'gemini-3.1-flash-lite': 'Gemini 3.1 Flash-Lite',
   'gemini-3.6-flash': 'Gemini 3.6 Flash',
-  'gemini-3.7-flash': 'Gemini 3.7 Flash',
 };
 const defaultModel = 'gemini-3.6-flash';
 const historyStorageKey = 'problem-radar-history-v1';
@@ -83,7 +82,7 @@ function renderHome() {
     <div class="hero">
       <div class="hero-copy"><p class="eyebrow">Opportunity Finder</p><h1>What problems are worth solving?</h1></div>
       <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic or problem…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
-        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.7-flash" ${homeModel === 'gemini-3.7-flash' ? 'selected' : ''}>Gemini 3.7 Flash — Stronger</option><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — Balanced</option><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Faster</option></select><small>Used for analysis and Smart signals</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
+        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — Balanced</option><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Faster</option></select><small>Used for analysis and Smart signals</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
           <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra Gemini request</em></label>
         </div></details>
       </form>
@@ -194,10 +193,15 @@ function renderAbout() {
 
 function renderError() {
   const rateLimited = currentResult?.errorType === 'rate_limit';
+  const redditRateLimited = currentResult?.errorType === 'reddit_rate_limit';
   const quotaError = currentResult?.errorType === 'quota';
   const modelBusy = currentResult?.errorType === 'model_busy';
   const modelLabel = analysisModels[currentResult?.model] || analysisModels[defaultModel];
   if (rateLimited) return `<section class="screen error-screen">${header('Demo limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">◌</span><h1>Take a quick breather</h1><p>Problem Radar allows 3 searches every 15 minutes to keep the public demo available. Try again in about ${escapeHtml(formatWait(currentResult?.retryAfter))}.</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
+  if (redditRateLimited) {
+    const waitMessage = currentResult?.retryAfter ? `Try again in about ${formatWait(currentResult.retryAfter)}.` : 'Try again in a few minutes.';
+    return `<section class="screen error-screen">${header('Reddit search paused', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">◌</span><h1>Reddit needs a quick breather</h1><p>Reddit is temporarily limiting discussion searches. Your topic is still saved. ${escapeHtml(waitMessage)}</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
+  }
   if (quotaError) {
     return `<section class="screen error-screen">${header('Gemini limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>That model needs a breather</h1><p>${escapeHtml(modelLabel)} has reached its current Gemini limit. Your topic is still saved below—try a different model or come back in a little while.</p><button class="primary-button" type="button" data-action="switch-model">Switch model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
   }
@@ -314,6 +318,7 @@ async function watchJob(id) {
     if (job.status === 'failed') {
       const error = new Error(job.error || 'Search failed.');
       error.type = job.error_type;
+      error.retryAfter = job.retry_after;
       throw error;
     }
     if (job.status === 'complete') { currentResult = job.result; saveHistory(job.result); activeProblem = null; view = 'results'; return; }

@@ -3,14 +3,17 @@ import os
 from unittest.mock import patch
 
 from models import Post, Problem
+from reddit_client import RedditRateLimitError
 import analyzer
 import web
 
 
 class ModelSelectionTests(unittest.TestCase):
     def test_rejects_models_outside_the_curated_list(self):
-        self.assertEqual(web._clean_model("gemini-3.7-flash"), "gemini-3.7-flash")
+        self.assertEqual(web._clean_model("gemini-3.6-flash"), "gemini-3.6-flash")
         self.assertEqual(web._clean_model("gemini-3.1-flash-lite"), "gemini-3.1-flash-lite")
+        with self.assertRaises(ValueError):
+            web._clean_model("gemini-3.7-flash")
         with self.assertRaises(ValueError):
             web._clean_model("not-a-model")
 
@@ -44,15 +47,29 @@ class ModelSelectionTests(unittest.TestCase):
         with patch.object(web, "expand_topic_keywords_via_api", keywords), patch.object(
             web, "search_reddit_for_problem_signals", return_value=[post]
         ), patch.object(web, "analyze_posts_via_api", analyze):
-            result = web.run_radar("test topic", signal_mode="smart", model="gemini-3.7-flash")
+            result = web.run_radar("test topic", signal_mode="smart", model="gemini-3.1-flash-lite")
 
-        self.assertEqual(result["model"], "gemini-3.7-flash")
+        self.assertEqual(result["model"], "gemini-3.1-flash-lite")
         self.assertEqual(len(result["problems"]), 3)
-        self.assertEqual(captured, {"keyword_model": "gemini-3.7-flash", "analysis_model": "gemini-3.7-flash"})
+        self.assertEqual(captured, {"keyword_model": "gemini-3.1-flash-lite", "analysis_model": "gemini-3.1-flash-lite"})
 
     def test_recognizes_gemini_quota_errors(self):
         self.assertTrue(web._is_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED: check quota")))
+        self.assertFalse(web._is_quota_error(RedditRateLimitError()))
         self.assertFalse(web._is_quota_error(RuntimeError("Invalid API key")))
+
+    def test_reddit_rate_limit_has_its_own_user_facing_failure(self):
+        web.JOBS.clear()
+        web.JOBS["test-job"] = {"status": "running"}
+        with patch.object(web, "run_radar", side_effect=RedditRateLimitError(120)), patch.object(
+            web.logger, "warning"
+        ) as log_warning:
+            web._run_job("test-job", "test topic", "basic", [], "gemini-3.6-flash")
+
+        self.assertEqual(web.JOBS["test-job"]["error_type"], "reddit_rate_limit")
+        self.assertEqual(web.JOBS["test-job"]["retry_after"], 120)
+        self.assertIn("Reddit", web.JOBS["test-job"]["error"])
+        log_warning.assert_called_once_with("Reddit rate-limited radar job (job_id=%s)", "test-job")
 
     def test_recognizes_temporary_gemini_high_demand_errors(self):
         self.assertTrue(web._is_model_busy_error(RuntimeError("503 UNAVAILABLE: model experiencing high demand")))

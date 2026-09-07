@@ -44,6 +44,23 @@ MIN_RSS_REQUEST_INTERVAL_SECONDS = 5.0
 DEFAULT_SEARCH_LIMIT = 75
 
 
+class RedditRateLimitError(RuntimeError):
+    """Raised when Reddit still rate-limits the RSS request after retries."""
+
+    def __init__(self, retry_after_seconds: int | None = None):
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__("Reddit is temporarily limiting searches. Try again in a few minutes.")
+
+
+def _retry_after_seconds(error: urllib.error.HTTPError) -> int | None:
+    """Return Reddit's numeric Retry-After estimate when one is available."""
+    value = error.headers.get("Retry-After") if error.headers else None
+    try:
+        return max(1, int(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
 def _strip_html(raw_html: str) -> str:
     """Turn the HTML snippet Reddit's RSS returns into plain text."""
     text = html.unescape(raw_html or "")
@@ -102,11 +119,7 @@ def _fetch_atom(
                     print(f"    (rate-limited, waiting {wait:.0f}s before retry {attempt + 1}/{max_retries})")
                     time.sleep(wait)
                     continue
-                raise RuntimeError(
-                    f"Reddit rate-limited this request (HTTP 429) after "
-                    f"{max_retries} attempts. Try again later, reduce how "
-                    f"many queries you run per session, or increase delay_seconds."
-                ) from e
+                raise RedditRateLimitError(_retry_after_seconds(e)) from e
             raise RuntimeError(f"Reddit returned HTTP {e.code} for {url}") from e
         except urllib.error.URLError as e:
             raise RuntimeError(f"Could not reach Reddit: {e.reason}") from e

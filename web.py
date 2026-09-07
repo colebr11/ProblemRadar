@@ -25,7 +25,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from analyzer import DEFAULT_MODEL, analyze_posts_via_api, expand_topic_keywords_via_api
-from reddit_client import search_reddit_for_problem_signals, search_reddit_posts
+from reddit_client import RedditRateLimitError, search_reddit_for_problem_signals, search_reddit_posts
 
 
 ROOT = Path(__file__).parent
@@ -37,7 +37,6 @@ JOB_RETENTION_SECONDS = 15 * 60
 ANALYSIS_MODELS = {
     "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
     "gemini-3.6-flash": "Gemini 3.6 Flash",
-    "gemini-3.7-flash": "Gemini 3.7 Flash",
 }
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
@@ -120,8 +119,7 @@ def _is_quota_error(error: Exception) -> bool:
         "resource_exhausted" in message
         or "quota exceeded" in message
         or "check quota" in message
-        or "rate limit" in message
-        or "429" in message
+        or ("gemini" in message and ("rate limit" in message or "429" in message))
     )
 
 
@@ -206,8 +204,19 @@ def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str
     try:
         result = run_radar(topic, signal_mode=signal_mode, custom_signals=custom_signals, model=model, on_status=progress)
         _set_job(job_id, status="complete", stage="complete", result=result)
+    except RedditRateLimitError as error:
+        logger.warning("Reddit rate-limited radar job (job_id=%s)", job_id)
+        _set_job(
+            job_id,
+            status="failed",
+            stage="failed",
+            error_type="reddit_rate_limit",
+            error=str(error),
+            retry_after=error.retry_after_seconds,
+        )
     except (ValueError, RuntimeError) as error:
         if _is_quota_error(error):
+            logger.warning("Gemini quota blocked radar job (job_id=%s, model=%s)", job_id, model)
             _set_job(
                 job_id,
                 status="failed",
@@ -216,6 +225,7 @@ def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str
                 error="Gemini has reached a limit for this model right now.",
             )
         elif _is_model_busy_error(error):
+            logger.warning("Gemini was busy for radar job (job_id=%s, model=%s)", job_id, model)
             _set_job(
                 job_id,
                 status="failed",
@@ -224,6 +234,7 @@ def _run_job(job_id: str, topic: str, signal_mode: str, custom_signals: list[str
                 error="Gemini is temporarily busy for this model.",
             )
         else:
+            logger.warning("Radar job failed (job_id=%s, model=%s): %s", job_id, model, error)
             _set_job(job_id, status="failed", stage="failed", error=str(error))
     except Exception:
         # Keep implementation details out of the public response while preserving

@@ -12,8 +12,9 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
 ### Gemini model choice and clearer results
 
 - Added an **Analysis model** selector under **Advanced search tools**.
-- The available choices are Gemini 3.7 Flash, Gemini 3.6 Flash (the default),
-  and Gemini 3.1 Flash-Lite.
+- The available choices are Gemini 3.6 Flash (the default) and Gemini 3.1
+  Flash-Lite. Gemini 3.7 Flash was removed after repeatedly returning temporary
+  high-demand errors in public-demo testing.
 - The selected model is used for both Smart Signals and opportunity analysis.
 - Each completed radar displays its model and retains it in History and Saved
   Ideas, making results easier to compare later.
@@ -29,6 +30,8 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
   direct option to switch models.
 - Added a separate helpful screen for Gemini's temporary high-demand errors,
   again encouraging the visitor to try another model or retry shortly.
+- Added a distinct Reddit rate-limit screen so an RSS limit is never mislabeled
+  as a Gemini model limit. It shows Reddit's wait estimate when available.
 - Kept the selected topic available when one of those errors occurs, so a
   visitor does not need to retype it.
 
@@ -57,8 +60,9 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
   provided, while staying local-only during normal development.
 - Completed and failed temporary search jobs now clear from server memory after
   15 minutes. This does not delete browser History or Saved Ideas.
-- Unexpected server errors now write detailed private tracebacks to server
-  logs, while visitors receive a simple retry message.
+- Expected Reddit and Gemini failures now identify their source in private
+  server logs. Unexpected errors still write detailed private tracebacks while
+  visitors receive a simple retry message.
 
 ## Validation
 
@@ -66,9 +70,9 @@ and more resilient when Gemini is slow, busy, or temporarily unavailable.
 - Added focused automated coverage for the model allowlist, selected-model
   pipeline, output caps, input caps, rate limit, temporary-job cleanup,
   friendly Gemini errors, host-port behavior, and private error logging.
-- All 9 automated tests pass.
-- Manually confirmed successful radars with Gemini 3.6 Flash and Gemini 3.7
-  Flash, including their model labels in the results and History.
+- All 10 automated tests pass.
+- Manually confirmed successful radars with Gemini 3.6 Flash, including its
+  model label in the results and History.
 
 ## Current usage
 
