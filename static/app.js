@@ -8,6 +8,7 @@ let closingProblem = null;
 let drawerOpen = false;
 let view = 'home';
 let aboutReturnView = 'home';
+let resultsReturnView = 'home';
 let homeTopic = '';
 let homeModel = 'gemini-3.6-flash';
 
@@ -121,7 +122,7 @@ function renderResults() {
   const signalLabel = signalMode === 'smart' ? 'Smart signals' : signalMode === 'custom' ? 'Custom terms' : 'Basic search';
   const modelLabel = analysisModels[currentResult.model] || analysisModels[defaultModel];
   const signals = currentResult.signals || [];
-  return `<section class="screen results-screen">${header('Opportunities', 'home', button('icon-button', 'upload', 'Share results', 'share'))}
+  return `<section class="screen results-screen">${header('Opportunities', 'results-back', button('icon-button', 'upload', 'Share results', 'share'))}
     <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${signalLabel}</span><span>${escapeHtml(modelLabel)}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
     <div class="result-list">${problems.length ? problems.map((problem, index) => `<div class="result-entry">${problemCard(problem, index, false, activeProblem === problem)}${activeProblem === problem ? renderProblemDetails(problem, false, index) : closingProblem === problem ? renderProblemDetails(problem, true, index) : ''}</div>`).join('') : renderEmptyState()}</div>
   </section>`;
@@ -164,10 +165,18 @@ function renderDetail() {
   return renderResults();
 }
 
+function renderSavedIdeaCard(item) {
+  const problem = item.problem || {};
+  const title = problem.title || item.title || 'Saved opportunity';
+  const description = problem.description || item.description || 'Open saved opportunity';
+  const score = Number(problem.opportunity_score ?? item.opportunity_score ?? 0);
+  return `<article class="saved-idea"><button type="button" class="saved-idea-open" data-open-saved="${item.id}"><span class="saved-topic">${escapeHtml(item.topic)}</span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small><span class="saved-score">${score}<em>/100</em></span></button><button type="button" class="remove-saved" data-delete-saved="${item.id}" aria-label="Remove ${escapeHtml(title)} from saved ideas">×</button></article>`;
+}
+
 function renderSavedIdeas() {
   return `<section class="screen saved-screen">${header('Saved ideas', 'home')}
     <div class="screen-copy"><p class="eyebrow">Your shortlist</p><h1>Ideas worth revisiting</h1><p>${savedIdeas.length ? 'Saved opportunities stay here even if you clear your search history.' : 'Bookmark a promising software opportunity to build your shortlist.'}</p><small class="storage-note">Stored in this browser · Up to 50 saved ideas. New saves replace the oldest when full.</small></div>
-    <div class="saved-list">${savedIdeas.length ? savedIdeas.map(item => `<article class="saved-idea"><button type="button" class="saved-idea-open" data-open-saved="${item.id}"><span class="saved-topic">${escapeHtml(item.topic)}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.description || 'Open saved opportunity')}</small><span class="saved-score">${Number(item.opportunity_score || 0)}<em>/100</em></span></button><button type="button" class="remove-saved" data-delete-saved="${item.id}" aria-label="Remove ${escapeHtml(item.title)} from saved ideas">×</button></article>`).join('') : '<section class="saved-empty"><span aria-hidden="true">☆</span><h2>No saved ideas yet</h2><p>Open a result and choose “Save idea” to keep its full opportunity analysis here.</p><button type="button" data-action="home">Explore opportunities</button></section>'}</div>
+    <div class="saved-list">${savedIdeas.length ? savedIdeas.map(renderSavedIdeaCard).join('') : '<section class="saved-empty"><span aria-hidden="true">☆</span><h2>No saved ideas yet</h2><p>Open a result and choose “Save idea” to keep its full opportunity analysis here.</p><button type="button" data-action="home">Explore opportunities</button></section>'}</div>
   </section>`;
 }
 
@@ -237,6 +246,7 @@ function bindEvents() {
 function handleAction(action) {
   if (action === 'toggle-drawer') { drawerOpen = !drawerOpen; render(); return; }
   if (action === 'home') { drawerOpen = false; activeProblem = null; view = 'home'; render(); return; }
+  if (action === 'results-back') { activeProblem = null; view = resultsReturnView; render(); return; }
   if (action === 'results') { view = 'results'; render(); return; }
   if (action === 'saved') { view = 'saved'; render(); return; }
   if (action === 'about') { aboutReturnView = view; drawerOpen = false; view = 'about'; render(); return; }
@@ -279,6 +289,7 @@ async function startSearch(topic, options = {}) {
   const customSignals = options.customSignals || [];
   const model = analysisModels[options.model] ? options.model : defaultModel;
   homeModel = model;
+  resultsReturnView = 'home';
   currentResult = { topic, model, job: { stage: 'queued', model, signal_mode: signalMode, keywords: signalMode === 'custom' ? customSignals : [], message: 'Preparing your search…' } };
   view = 'loading'; render();
   try {
@@ -315,6 +326,7 @@ function openHistory(id) {
   const item = history.find(entry => entry.id === id);
   if (!item) return;
   currentResult = item;
+  resultsReturnView = 'home';
   drawerOpen = false;
   activeProblem = null;
   view = 'results';
@@ -355,6 +367,7 @@ function openSavedIdea(id) {
   const saved = savedIdeas.find(item => item.id === id);
   if (!saved) return;
   currentResult = { id: `saved:${saved.id}`, topic: saved.topic, model: saved.model || defaultModel, signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
+  resultsReturnView = 'saved';
   activeProblem = null;
   view = 'results';
   render();

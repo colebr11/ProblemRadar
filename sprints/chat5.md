@@ -90,7 +90,4 @@ search tools** to choose a model, add Custom terms, or enable Smart Signals.
    in results and History; and verify Saved Ideas, browser refresh, and the
    demo-limit screen. The Gemini model testing was cut short locally, so this
    is the most important remaining validation.
-3. **Optional:** import the pre-browser-storage local History into the new
-   browser History. It is safe to leave the old local file alone as a backup;
-   importing it is only useful if those earlier radars are worth keeping.
-4. Capture a few polished screenshots and write the personal-project post.
+3. Capture a few polished screenshots and write the personal-project post.
