@@ -121,7 +121,7 @@ function renderResults() {
   const signalLabel = signalMode === 'smart' ? 'Smart signals' : signalMode === 'custom' ? 'Custom terms' : 'Basic search';
   const modelLabel = analysisModels[currentResult.model] || analysisModels[defaultModel];
   const signals = currentResult.signals || [];
-  return `<section class="screen results-screen">${header('Opportunities', 'results-back', button('icon-button', 'upload', 'Share results', 'share'))}
+  return `<section class="screen results-screen">${header('Opportunities', 'results-back', button('icon-button', 'upload', 'Share Problem Radar', 'share'))}
     <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${signalLabel}</span><span>${escapeHtml(modelLabel)}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
     <div class="result-list">${problems.length ? problems.map((problem, index) => `<div class="result-entry">${problemCard(problem, index, false, activeProblem === problem)}${activeProblem === problem ? renderProblemDetails(problem, false, index) : closingProblem === problem ? renderProblemDetails(problem, true, index) : ''}</div>`).join('') : renderEmptyState()}</div>
   </section>`;
@@ -274,7 +274,37 @@ function handleAction(action) {
     return;
   }
   if (action === 'try-smart') { startSearch(currentResult?.topic, { signalMode: 'smart', model: currentResult?.model }); return; }
-  if (action === 'share') navigator.share?.({ title: 'Problem Radar', text: `Opportunities in ${currentResult.topic}` });
+  if (action === 'share') { void shareApp(); return; }
+}
+
+async function shareApp() {
+  const url = 'https://problem-radar-w1zr.onrender.com';
+  const data = {
+    title: 'Problem Radar',
+    text: 'Find software opportunities from real Reddit discussions with Problem Radar.',
+    url,
+  };
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share(data);
+      return;
+    } catch (error) {
+      // Closing the share sheet is intentional; do not copy anything afterward.
+      if (error?.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    document.querySelector('.share-notice')?.remove();
+    const notice = document.createElement('div');
+    notice.className = 'share-notice';
+    notice.setAttribute('role', 'status');
+    notice.textContent = 'App link copied';
+    document.body.appendChild(notice);
+    setTimeout(() => notice.remove(), 3500);
+  } catch {
+    window.prompt('Copy this link to share Problem Radar:', url);
+  }
 }
 
 function loadHistory() {
