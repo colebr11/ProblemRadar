@@ -10,9 +10,13 @@ import web
 
 
 class ModelSelectionTests(unittest.TestCase):
+    def setUp(self):
+        analyzer.GROQ_COOLDOWN_UNTIL.clear()
+
     def test_rejects_models_outside_the_curated_list(self):
-        self.assertEqual(analyzer.DEFAULT_MODEL, "gemini-3.1-flash-lite")
-        self.assertEqual(web._clean_model(None), "gemini-3.1-flash-lite")
+        self.assertEqual(analyzer.DEFAULT_MODEL, "openai/gpt-oss-120b")
+        self.assertEqual(web._clean_model(None), "openai/gpt-oss-120b")
+        self.assertEqual(web._clean_model("openai/gpt-oss-120b"), "openai/gpt-oss-120b")
         self.assertEqual(web._clean_model("gemini-3.6-flash"), "gemini-3.6-flash")
         self.assertEqual(web._clean_model("gemini-3.1-flash-lite"), "gemini-3.1-flash-lite")
         with self.assertRaises(ValueError):
@@ -20,7 +24,7 @@ class ModelSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             web._clean_model("not-a-model")
 
-    def test_smart_radar_uses_the_selected_model_for_both_gemini_requests(self):
+    def test_smart_radar_uses_the_selected_model_for_both_ai_requests(self):
         post = Post(
             id="p1",
             source="reddit",
@@ -31,30 +35,200 @@ class ModelSelectionTests(unittest.TestCase):
         )
         captured = {}
 
-        def keywords(topic, model):
+        def keywords(topic, model, on_fallback=None):
             captured["keyword_model"] = model
             return ["wish"]
 
-        def analyze(posts, model):
+        def analyze(posts, model, on_fallback=None):
             captured["analysis_model"] = model
-            return [
-                Problem(
-                    title=f"Problem {index}",
-                    description="A concise problem.",
-                    post_count=2,
-                    opportunity_score=index,
-                )
-                for index in range(4)
-            ]
+            return analyzer.AnalysisResult(
+                problems=[
+                    Problem(
+                        title=f"Problem {index}",
+                        description="A concise problem.",
+                        post_count=2,
+                        opportunity_score=index,
+                    )
+                    for index in range(4)
+                ],
+                provider="groq",
+                model=model,
+            )
 
         with patch.object(web, "expand_topic_keywords_via_api", keywords), patch.object(
             web, "search_reddit_for_problem_signals", return_value=[post]
-        ), patch.object(web, "analyze_posts_via_api", analyze):
-            result = web.run_radar("test topic", signal_mode="smart", model="gemini-3.1-flash-lite")
+        ), patch.object(web, "analyze_posts_with_metadata", analyze):
+            result = web.run_radar("test topic", signal_mode="smart", model="openai/gpt-oss-120b")
 
-        self.assertEqual(result["model"], "gemini-3.1-flash-lite")
+        self.assertEqual(result["model"], "openai/gpt-oss-120b")
+        self.assertEqual(result["provider"], "groq")
+        self.assertEqual(result["provider_model"], "openai/gpt-oss-120b")
+        self.assertFalse(result["fallback_used"])
         self.assertEqual(len(result["problems"]), 3)
-        self.assertEqual(captured, {"keyword_model": "gemini-3.1-flash-lite", "analysis_model": "gemini-3.1-flash-lite"})
+        self.assertEqual(captured, {"keyword_model": "openai/gpt-oss-120b", "analysis_model": "openai/gpt-oss-120b"})
+
+    def test_groq_is_primary_when_it_succeeds(self):
+        expected = [Problem(title="Problem", description="Description", post_count=2)]
+        with patch.object(analyzer, "_analyze_groq", return_value=expected) as groq, patch.object(
+            analyzer, "_analyze_gemini"
+        ) as gemini:
+            result = analyzer.analyze_posts_with_metadata([], model=analyzer.GROQ_MODEL)
+
+        self.assertEqual(result.problems, expected)
+        self.assertEqual(result.provider, "groq")
+        self.assertFalse(result.fallback_used)
+        groq.assert_called_once()
+        gemini.assert_not_called()
+
+    def test_retryable_120b_failure_uses_20b_fallback(self):
+        expected = [Problem(title="Fallback", description="Description", post_count=2)]
+        fallbacks = []
+        with patch.object(
+            analyzer,
+            "_analyze_groq",
+            side_effect=[
+                analyzer.GroqRequestError("120B rate limit", retryable=True),
+                expected,
+            ],
+        ) as groq, patch.object(analyzer, "_analyze_gemini") as gemini:
+            result = analyzer.analyze_posts_with_metadata(
+                [],
+                model=analyzer.GROQ_MODEL,
+                on_fallback=lambda primary, fallback: fallbacks.append((primary, fallback)),
+            )
+
+        self.assertEqual(result.problems, expected)
+        self.assertEqual(result.provider, "groq")
+        self.assertEqual(result.model, analyzer.GROQ_FALLBACK_MODEL)
+        self.assertTrue(result.fallback_used)
+        self.assertEqual(
+            fallbacks,
+            [(analyzer.GROQ_MODEL, analyzer.GROQ_FALLBACK_MODEL)],
+        )
+        self.assertEqual(groq.call_count, 2)
+        gemini.assert_not_called()
+
+    def test_nonretryable_groq_failure_does_not_hide_configuration_error(self):
+        with patch.object(
+            analyzer,
+            "_analyze_groq",
+            side_effect=analyzer.GroqRequestError("Groq rejected the key", retryable=False),
+        ) as groq, patch.object(analyzer, "_analyze_gemini") as gemini:
+            with self.assertRaises(analyzer.GroqRequestError):
+                analyzer.analyze_posts_with_metadata([], model=analyzer.GROQ_MODEL)
+
+        groq.assert_called_once()
+        gemini.assert_not_called()
+
+    def test_groq_route_never_uses_automatic_gemini_fallback(self):
+        retryable = analyzer.GroqRequestError("temporary Groq failure", retryable=True)
+        with patch.object(analyzer, "_analyze_groq", side_effect=[retryable, retryable]), patch.object(
+            analyzer, "_analyze_gemini"
+        ) as gemini:
+            with self.assertRaises(analyzer.ProviderUnavailableError):
+                analyzer.analyze_posts_with_metadata([], model=analyzer.GROQ_MODEL)
+
+        gemini.assert_not_called()
+
+    def test_active_120b_cooldown_skips_directly_to_20b(self):
+        expected = [Problem(title="Fallback", description="Description", post_count=2)]
+        analyzer._start_groq_cooldown(analyzer.GROQ_MODEL, 60, now=100)
+        fallbacks = []
+        with patch.object(analyzer.time, "monotonic", return_value=110), patch.object(
+            analyzer, "_analyze_groq", return_value=expected
+        ) as groq:
+            result = analyzer.analyze_posts_with_metadata(
+                [],
+                on_fallback=lambda primary, fallback: fallbacks.append((primary, fallback)),
+            )
+
+        self.assertEqual(result.model, analyzer.GROQ_FALLBACK_MODEL)
+        self.assertTrue(result.fallback_used)
+        groq.assert_called_once()
+        self.assertEqual(groq.call_args.kwargs["model"], analyzer.GROQ_FALLBACK_MODEL)
+        self.assertEqual(len(fallbacks), 1)
+
+    def test_groq_retry_after_header_controls_the_cooldown(self):
+        class Response:
+            headers = {"retry-after": "2.2"}
+
+        error = RuntimeError("rate limited")
+        error.response = Response()
+
+        self.assertEqual(analyzer._retry_after_seconds(error), 3)
+
+    def test_smart_signals_use_20b_before_built_in_terms(self):
+        fallbacks = []
+        with patch.dict(os.environ, {"GROQ_API_KEY": "groq-test"}, clear=True), patch.object(
+            analyzer,
+            "_generate_groq_text",
+            side_effect=[
+                analyzer.GroqRequestError("120B busy", retryable=True),
+                '["overwhelmed", "manual work", "frustrating"]',
+            ],
+        ):
+            keywords = analyzer.expand_topic_keywords_via_api(
+                "college students",
+                on_fallback=lambda primary, fallback: fallbacks.append((primary, fallback)),
+            )
+
+        self.assertEqual(keywords, ["overwhelmed", "manual work", "frustrating"])
+        self.assertEqual(len(fallbacks), 1)
+
+    def test_web_reports_20b_fallback_while_analysis_continues(self):
+        post = Post(id="p1", source="reddit", title="Problem", body="Repeated problem")
+        statuses = []
+
+        def analyze(posts, model, on_fallback=None):
+            on_fallback(analyzer.GROQ_MODEL, analyzer.GROQ_FALLBACK_MODEL)
+            return analyzer.AnalysisResult(
+                problems=[],
+                provider="groq",
+                model=analyzer.GROQ_FALLBACK_MODEL,
+                fallback_used=True,
+            )
+
+        with patch.object(web, "search_reddit_posts", return_value=[post]), patch.object(
+            web, "analyze_posts_with_metadata", analyze
+        ):
+            result = web.run_radar(
+                "test topic",
+                on_status=lambda stage, **details: statuses.append((stage, details)),
+            )
+
+        self.assertEqual(result["provider_model"], analyzer.GROQ_FALLBACK_MODEL)
+        self.assertTrue(result["fallback_used"])
+        self.assertTrue(
+            any(
+                stage == "analyzing" and "using GPT-OSS 20B" in details.get("message", "")
+                for stage, details in statuses
+            )
+        )
+
+    def test_direct_gemini_selection_never_calls_groq(self):
+        expected = [Problem(title="Gemini", description="Description", post_count=2)]
+        with patch.object(analyzer, "_analyze_groq") as groq, patch.object(
+            analyzer, "_analyze_gemini", return_value=expected
+        ) as gemini:
+            result = analyzer.analyze_posts_with_metadata([], model="gemini-3.6-flash")
+
+        self.assertEqual(result.provider, "gemini")
+        self.assertEqual(result.model, "gemini-3.6-flash")
+        groq.assert_not_called()
+        gemini.assert_called_once()
+
+    def test_both_groq_models_unavailable_has_its_own_user_facing_failure(self):
+        web.JOBS.clear()
+        web.JOBS["test-job"] = {"status": "running"}
+        with patch.object(
+            web,
+            "run_radar",
+            side_effect=analyzer.ProviderUnavailableError("private provider details"),
+        ):
+            web._run_job("test-job", "test topic", "basic", [], analyzer.GROQ_MODEL)
+
+        self.assertEqual(web.JOBS["test-job"]["error_type"], "provider_unavailable")
+        self.assertNotIn("private", web.JOBS["test-job"]["error"])
 
     def test_recognizes_gemini_quota_errors(self):
         self.assertTrue(web._is_quota_error(RuntimeError("429 RESOURCE_EXHAUSTED: check quota")))
@@ -204,7 +378,7 @@ class ModelSelectionTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             reddit_client._parse_atom_document(declared)
 
-    def test_caps_each_post_and_the_full_gemini_input(self):
+    def test_caps_each_post_and_the_full_ai_input(self):
         posts = [
             Post(id=f"p{index}", source="reddit", title="Long post", body="x" * 20)
             for index in range(2)
@@ -216,6 +390,32 @@ class ModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(prompt.count("xxxxxx [truncated]"), 2)
         self.assertNotIn("xxxxxxx", prompt)
+
+    def test_groq_uses_a_smaller_free_tier_input_budget(self):
+        posts = [
+            Post(id=f"p{index}", source="reddit", title="Long post", body="x" * 2_000)
+            for index in range(30)
+        ]
+        with patch.object(analyzer, "_generate_groq_text", return_value="[]") as generate:
+            analyzer._analyze_groq(posts, api_key="test-key")
+
+        prompt = generate.call_args.args[0]
+        self.assertLess(len(prompt), len(analyzer._build_user_prompt(posts)))
+        self.assertIn("[p24]", prompt)
+        self.assertNotIn("[p25]", prompt)
+
+    def test_gemini_uses_the_same_twenty_five_highest_ranked_posts(self):
+        posts = [
+            Post(id=f"p{index}", source="reddit", title="Post", body="Body")
+            for index in range(30)
+        ]
+        with patch.object(analyzer, "analyze_posts_via_api_raw", return_value="[]") as analyze:
+            analyzer._analyze_gemini(posts, api_key="test-key")
+
+        analyzed_posts = analyze.call_args.args[0]
+        self.assertEqual(len(analyzed_posts), 25)
+        self.assertEqual(analyzed_posts[0].id, "p0")
+        self.assertEqual(analyzed_posts[-1].id, "p24")
 
 
 if __name__ == "__main__":

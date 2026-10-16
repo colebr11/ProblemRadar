@@ -2,7 +2,7 @@
 
 Run with ``python3 web.py`` and open http://127.0.0.1:8000.
 The existing command-line workflow remains unchanged; this module is only an
-HTTP adapter around the same Reddit search and Gemini analysis functions.
+HTTP adapter around the same Reddit search and AI analysis functions.
 """
 
 from __future__ import annotations
@@ -24,7 +24,15 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from analyzer import DEFAULT_MODEL, analyze_posts_via_api, expand_topic_keywords_via_api
+from analyzer import (
+    DEFAULT_MODEL,
+    GROQ_FALLBACK_MODEL,
+    GROQ_MODEL,
+    MAX_ANALYSIS_POSTS,
+    ProviderUnavailableError,
+    analyze_posts_with_metadata,
+    expand_topic_keywords_via_api,
+)
 from reddit_client import RedditRateLimitError, search_reddit_for_problem_signals, search_reddit_posts
 
 
@@ -35,6 +43,7 @@ SEARCH_LIMIT_COUNT = 3
 SEARCH_LIMIT_WINDOW_SECONDS = 15 * 60
 JOB_RETENTION_SECONDS = 15 * 60
 ANALYSIS_MODELS = {
+    GROQ_MODEL: "Groq GPT-OSS 120B",
     "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
     "gemini-3.6-flash": "Gemini 3.6 Flash",
 }
@@ -127,7 +136,7 @@ def _clean_search_options(payload: dict) -> tuple[str, list[str]]:
 def _clean_model(value: object) -> str:
     model = str(value or DEFAULT_MODEL).strip()
     if model not in ANALYSIS_MODELS:
-        raise ValueError("Choose one of the available Gemini analysis models.")
+        raise ValueError("Choose one of the available analysis models.")
     return model
 
 
@@ -163,8 +172,19 @@ def run_radar(
     custom_signals = custom_signals or []
     if signal_mode == "smart":
         update("signals", message="Choosing topic-specific search signals…", signal_mode=signal_mode)
-        keywords = expand_topic_keywords_via_api(topic, model=model)[:3]
-        keyword_source = "Gemini-generated signals" if os.environ.get("GEMINI_API_KEY") else "Built-in problem signals"
+        keywords = expand_topic_keywords_via_api(
+            topic,
+            model=model,
+            on_fallback=lambda _primary, _fallback: update(
+                "signals",
+                message="GPT-OSS 120B is unavailable—using GPT-OSS 20B as a fallback…",
+                signal_mode=signal_mode,
+                fallback_model=GROQ_FALLBACK_MODEL,
+            ),
+        )[:3]
+        keyword_source = "AI-generated signals" if (
+            os.environ.get("GROQ_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        ) else "Built-in problem signals"
         update("searching", message="Searching discussions with Smart signals…", signal_mode=signal_mode, keywords=keywords, keyword_source=keyword_source)
         posts = search_reddit_for_problem_signals(topic, limit=75, keywords=keywords, allow_broad_fallback=False, on_status=update)
     elif signal_mode == "custom":
@@ -180,8 +200,20 @@ def run_radar(
             f'No relevant Reddit discussions were found for "{topic}". Try another lens.'
         )
 
-    update("analyzing", message="Analyzing recurring software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=len(posts))
-    problems = analyze_posts_via_api(posts, model=model)
+    update("analyzing", message="Analyzing recurring software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=min(len(posts), MAX_ANALYSIS_POSTS))
+    analysis = analyze_posts_with_metadata(
+        posts,
+        model=model,
+        on_fallback=lambda _primary, _fallback: update(
+            "analyzing",
+            message="GPT-OSS 120B is unavailable—using GPT-OSS 20B as a fallback…",
+            signal_mode=signal_mode,
+            keywords=keywords,
+            post_count=min(len(posts), MAX_ANALYSIS_POSTS),
+            fallback_model=GROQ_FALLBACK_MODEL,
+        ),
+    )
+    problems = analysis.problems
     problems.sort(key=lambda problem: problem.opportunity_score, reverse=True)
     update("ranking", message="Ranking software opportunities…", signal_mode=signal_mode, keywords=keywords, post_count=len(posts))
 
@@ -189,6 +221,9 @@ def run_radar(
         "id": uuid.uuid4().hex,
         "topic": topic,
         "model": model,
+        "provider": analysis.provider,
+        "provider_model": analysis.model,
+        "fallback_used": analysis.fallback_used,
         "signal_mode": signal_mode,
         "signals": keywords,
         "created_at": datetime.now(UTC).isoformat(),
@@ -248,6 +283,15 @@ def _run_job(
     except NoRelevantDiscussionsError as error:
         logger.info("No relevant discussions for radar job (job_id=%s)", job_id)
         _set_job(job_id, status="failed", stage="failed", error=str(error))
+    except ProviderUnavailableError:
+        logger.warning("Groq models unavailable for radar job (job_id=%s, model=%s)", job_id, model)
+        _set_job(
+            job_id,
+            status="failed",
+            stage="failed",
+            error_type="provider_unavailable",
+            error="The Groq analysis models are temporarily unavailable.",
+        )
     except (ValueError, RuntimeError) as error:
         if _is_quota_error(error):
             logger.warning("Gemini quota blocked radar job (job_id=%s, model=%s)", job_id, model)

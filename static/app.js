@@ -10,13 +10,15 @@ let view = 'home';
 let aboutReturnView = 'home';
 let resultsReturnView = 'home';
 let homeTopic = '';
-let homeModel = 'gemini-3.1-flash-lite';
+let homeModel = 'openai/gpt-oss-120b';
 
 const analysisModels = {
+  'openai/gpt-oss-120b': 'Groq GPT-OSS 120B',
+  'openai/gpt-oss-20b': 'Groq GPT-OSS 20B',
   'gemini-3.1-flash-lite': 'Gemini 3.1 Flash-Lite',
   'gemini-3.6-flash': 'Gemini 3.6 Flash',
 };
-const defaultModel = 'gemini-3.1-flash-lite';
+const defaultModel = 'openai/gpt-oss-120b';
 const historyStorageKey = 'problem-radar-history-v1';
 const savedIdeasStorageKey = 'problem-radar-saved-ideas-v1';
 const maxHistoryItems = 20;
@@ -59,6 +61,13 @@ function formatWait(seconds) {
   return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
+function resultModelLabel(result) {
+  const actualModel = result?.provider_model || result?.model || defaultModel;
+  const label = analysisModels[actualModel] || analysisModels[result?.model] || analysisModels[defaultModel];
+  if (result?.fallback_used && actualModel === 'openai/gpt-oss-20b') return `${label} · fallback after 120B`;
+  return result?.fallback_used ? `${label} · fallback` : label;
+}
+
 function button(className, iconName, label, action) {
   return `<button class="${className}" type="button" aria-label="${label}" data-action="${action}">${icon(iconName)}</button>`;
 }
@@ -82,8 +91,8 @@ function renderHome() {
     <div class="hero">
       <div class="hero-copy"><p class="eyebrow">Opportunity Finder</p><h1>What problems are worth solving?</h1></div>
       <form id="search-form" class="search-form"><div class="search-box"><img src="assets/search.svg" alt="" /><input id="topic" name="topic" value="${escapeHtml(homeTopic)}" placeholder="Enter a topic or problem…" autocomplete="off" /><button aria-label="Search" type="submit">${icon('arrow-right')}</button></div>
-        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="Gemini analysis model"><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Default · Faster</option><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — More capable · May be slower</option></select><small>3.1 Flash-Lite is the faster default. Choose 3.6 Flash for deeper analysis when available.</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
-          <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra Gemini request</em></label>
+        <details class="advanced-tools"><summary><span>Advanced search tools</span><small>Optional</small><i aria-hidden="true">⌄</i></summary><div class="search-options"><label class="model-picker"><span>Analysis model</span><select name="model" aria-label="AI analysis model"><option value="openai/gpt-oss-120b" ${homeModel === 'openai/gpt-oss-120b' ? 'selected' : ''}>Groq GPT-OSS 120B — Default</option><option value="gemini-3.1-flash-lite" ${homeModel === 'gemini-3.1-flash-lite' ? 'selected' : ''}>Gemini 3.1 Flash-Lite — Faster</option><option value="gemini-3.6-flash" ${homeModel === 'gemini-3.6-flash' ? 'selected' : ''}>Gemini 3.6 Flash — More capable · May be slower</option></select><small>Groq is the default and automatically continues with GPT-OSS 20B if 120B is temporarily unavailable.</small></label><label class="focus-terms"><span>Refine with up to 3 terms <small>optional</small></span><input name="custom-signals" placeholder="e.g. dating apps, lonely, meeting people" autocomplete="off" /></label>
+          <label class="smart-toggle"><input type="checkbox" name="smart-signals" /><span aria-hidden="true"></span><b>Smart signals</b><em>Uses one extra AI request</em></label>
         </div></details>
       </form>
       <section class="examples"><p>Popular radars this week</p><div>${exampleTopics.map(topic => `<button type="button" class="topic-pill" data-topic="${topic}">${topic}</button>`).join('')}</div></section>
@@ -119,7 +128,7 @@ function renderResults() {
   const problems = currentResult.problems || [];
   const signalMode = currentResult.signal_mode || 'basic';
   const signalLabel = signalMode === 'smart' ? 'Smart signals' : signalMode === 'custom' ? 'Custom terms' : 'Basic search';
-  const modelLabel = analysisModels[currentResult.model] || analysisModels[defaultModel];
+  const modelLabel = resultModelLabel(currentResult);
   const signals = currentResult.signals || [];
   return `<section class="screen results-screen">${header('Opportunities', 'results-back', button('icon-button', 'upload', 'Share Problem Radar', 'share'))}
     <div class="screen-copy"><h1>Top Problems Discovered</h1><p>Search: ${escapeHtml(currentResult.topic)}</p><div class="result-meta"><span>${signalLabel}</span><span>${escapeHtml(modelLabel)}</span>${signals.length ? `<small>${signals.map(escapeHtml).join(' · ')}</small>` : ''}</div></div>
@@ -183,11 +192,11 @@ function renderSavedIdeas() {
 function renderAbout() {
   return `<section class="screen about-screen">${header('How it works', 'about-back')}
     <div class="about-copy"><p class="eyebrow">Problem Radar</p><h1>From conversation to opportunity</h1><p class="about-intro">Problem Radar helps you spot recurring problems people are already discussing, then turns them into software opportunities worth investigating.</p>
-      <section class="about-section"><h2>What happens in a radar</h2><ol class="process-list"><li><b>1</b><span><strong>Choose a search lens</strong><small>Enter a topic, then optionally add Custom terms or use Smart signals.</small></span></li><li><b>2</b><span><strong>Find relevant discussions</strong><small>Problem Radar searches public Reddit conversations related to that lens.</small></span></li><li><b>3</b><span><strong>Identify recurring problems</strong><small>Gemini looks for themes that appear across multiple discussions.</small></span></li><li><b>4</b><span><strong>Rank software opportunities</strong><small>The strongest recurring themes are presented as opportunities to explore.</small></span></li></ol></section>
-      <section class="about-section rating-section"><h2>How ratings work</h2><p>A rating is an estimate, not a guarantee. Gemini considers how often a problem appears, how painful it seems, who experiences it, current workarounds, and whether software could credibly improve the outcome.</p><div class="rating-note"><strong>A higher score means</strong><span>Stronger evidence of a recurring, painful problem with a clearer software opportunity.</span></div></section>
-      <section class="about-section"><h2>How to get better results</h2><p>Start with a specific topic. Use Custom terms when you want to focus the discussion, or Smart signals when you want Gemini to choose a more tailored search lens.</p></section>
-      <section class="about-section"><h2>Choose your analysis model</h2><p>Under Advanced search tools, you can select the Gemini model used to choose Smart signals and analyze the discussions. Each completed radar records the model used, so you can compare results later.</p></section>
-      <section class="about-section about-limit"><h2>Keep in mind</h2><p>Results depend on the Reddit discussions available and Gemini’s analysis. Use a radar as a starting point for validation, not as proof of market demand. To keep the public demo available, each visitor can complete up to 3 successful searches every 15 minutes. Failed searches do not count.</p></section>
+      <section class="about-section"><h2>What happens in a radar</h2><ol class="process-list"><li><b>1</b><span><strong>Choose a search lens</strong><small>Enter a topic, then optionally add Custom terms or use Smart signals.</small></span></li><li><b>2</b><span><strong>Find relevant discussions</strong><small>Problem Radar searches public Reddit conversations related to that lens.</small></span></li><li><b>3</b><span><strong>Identify recurring problems</strong><small>AI analysis looks for themes that appear across multiple discussions.</small></span></li><li><b>4</b><span><strong>Rank software opportunities</strong><small>The strongest recurring themes are presented as opportunities to explore.</small></span></li></ol></section>
+      <section class="about-section rating-section"><h2>How ratings work</h2><p>A rating is an estimate, not a guarantee. The selected model considers how often a problem appears, how painful it seems, who experiences it, current workarounds, and whether software could credibly improve the outcome.</p><div class="rating-note"><strong>A higher score means</strong><span>Stronger evidence of a recurring, painful problem with a clearer software opportunity.</span></div></section>
+      <section class="about-section"><h2>How to get better results</h2><p>Start with a specific topic. Use Custom terms when you want to focus the discussion, or Smart signals when you want AI to choose a more tailored search lens.</p></section>
+      <section class="about-section"><h2>Choose your analysis model</h2><p>Under Advanced search tools, you can use the default Groq route or select Gemini directly. If GPT-OSS 120B is temporarily unavailable, the Groq route continues with GPT-OSS 20B. Completed radars record the model that produced the analysis.</p></section>
+      <section class="about-section about-limit"><h2>Keep in mind</h2><p>Results depend on the Reddit discussions available and the selected AI model’s analysis. Use a radar as a starting point for validation, not as proof of market demand. To keep the public demo available, each visitor can complete up to 3 successful searches every 15 minutes. Failed searches do not count.</p></section>
     </div>
   </section>`;
 }
@@ -197,7 +206,8 @@ function renderError() {
   const redditRateLimited = currentResult?.errorType === 'reddit_rate_limit';
   const quotaError = currentResult?.errorType === 'quota';
   const modelBusy = currentResult?.errorType === 'model_busy';
-  const modelLabel = analysisModels[currentResult?.model] || analysisModels[defaultModel];
+  const providerUnavailable = currentResult?.errorType === 'provider_unavailable';
+  const modelLabel = resultModelLabel(currentResult);
   if (rateLimited) return `<section class="screen error-screen">${header('Demo limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">◌</span><h1>Take a quick breather</h1><p>Problem Radar allows 3 successful searches every 15 minutes to keep the public demo available. Failed searches do not count. Try again in about ${escapeHtml(formatWait(currentResult?.retryAfter))}.</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
   if (redditRateLimited) {
     const waitMessage = currentResult?.retryAfter ? `Try again in about ${formatWait(currentResult.retryAfter)}.` : 'Try again in a few minutes.';
@@ -207,11 +217,12 @@ function renderError() {
     return `<section class="screen error-screen">${header('Gemini limit reached', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>That model needs a breather</h1><p>${escapeHtml(modelLabel)} has reached its current Gemini limit. Your topic is still saved below—try a different model or come back in a little while.</p><button class="primary-button" type="button" data-action="switch-model">Switch model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
   }
   if (modelBusy) return `<section class="screen error-screen">${header('Gemini is busy', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>That model is busy right now</h1><p>${escapeHtml(modelLabel)} is experiencing high demand. Your topic is still saved below—try a different model or come back in a few minutes.</p><button class="primary-button" type="button" data-action="switch-model">Switch model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
+  if (providerUnavailable) return `<section class="screen error-screen">${header('Groq is unavailable', 'home')}<div class="message-panel quota-panel"><span class="message-icon" aria-hidden="true">⌁</span><h1>The Groq models need a breather</h1><p>Neither GPT-OSS 120B nor its 20B fallback could complete this radar. Your topic is still saved—try again in a few minutes or choose Gemini manually.</p><button class="primary-button" type="button" data-action="switch-model">Choose another model</button><button class="secondary-button" type="button" data-action="home">Return home</button></div></section>`;
   return `<section class="screen error-screen">${header('Problem Radar', 'home')}<div class="message-panel"><h1>That radar didn’t complete</h1><p>${escapeHtml(currentResult?.error || 'Try again in a moment.')}</p><button class="primary-button" type="button" data-action="home">Return home</button></div></section>`;
 }
 
 function renderDrawer() {
-  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => { const id = escapeHtml(item.id); return `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}<small>${escapeHtml(analysisModels[item.model] || analysisModels[defaultModel])}</small></span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`; }).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><p class="storage-note history-storage-note">Stored in this browser · Up to 20 radars. New searches replace the oldest when full.</p><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
+  return `<div class="drawer-layer"><button class="drawer-scrim" data-action="toggle-drawer" aria-label="Close history"></button><aside class="drawer"><header><div><img src="assets/history.svg" alt="" /><strong>History</strong></div>${button('small-icon-button', 'close', 'Close history', 'toggle-drawer')}</header><div class="history-list">${history.length ? history.map(item => { const id = escapeHtml(item.id); return `<div class="history-row ${currentResult?.id === item.id ? 'selected' : ''}"><button type="button" class="history-item" data-history="${id}">${icon('message-circle')}<span>${escapeHtml(item.topic)}<small>${escapeHtml(resultModelLabel(item))}</small></span>${currentResult?.id === item.id ? '<i></i>' : ''}</button><button type="button" class="delete-history" data-delete-history="${id}" aria-label="Delete ${escapeHtml(item.topic)} from history">×</button></div>`; }).join('') : '<p class="history-empty">Your completed radars will appear here.</p>'}</div><p class="storage-note history-storage-note">Stored in this browser · Up to 20 radars. New searches replace the oldest when full.</p><button type="button" class="drawer-footer" data-action="about"><span aria-hidden="true">ⓘ</span><strong>How Problem Radar works</strong><i aria-hidden="true">›</i></button></aside></div>`;
 }
 
 function bindEvents() {
@@ -387,6 +398,9 @@ function saveProblem(index) {
     key: ideaKey(currentResult.topic, problem),
     topic: currentResult.topic,
     model: currentResult.model || defaultModel,
+    provider: currentResult.provider,
+    provider_model: currentResult.provider_model,
+    fallback_used: Boolean(currentResult.fallback_used),
     signal_mode: currentResult.signal_mode,
     signals: currentResult.signals || [],
     saved_at: new Date().toISOString(),
@@ -402,7 +416,7 @@ function saveProblem(index) {
 function openSavedIdea(id) {
   const saved = savedIdeas.find(item => item.id === id);
   if (!saved) return;
-  currentResult = { id: `saved:${saved.id}`, topic: saved.topic, model: saved.model || defaultModel, signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
+  currentResult = { id: `saved:${saved.id}`, topic: saved.topic, model: saved.model || defaultModel, provider: saved.provider, provider_model: saved.provider_model, fallback_used: Boolean(saved.fallback_used), signal_mode: saved.signal_mode, signals: saved.signals || [], problems: [saved.problem], posts: saved.posts || [] };
   resultsReturnView = 'saved';
   activeProblem = null;
   view = 'results';

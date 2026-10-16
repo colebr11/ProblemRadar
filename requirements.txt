@@ -1,3 +1,4 @@
 # The manual generate / parse workflow uses only the Python standard library.
-# `run` uses Google's official Gemini API SDK.
+# `run` uses the official Groq and Gemini API SDKs.
+groq>=1.7.0,<2.0.0
 google-genai>=1.0.0

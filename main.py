@@ -12,7 +12,7 @@ Default workflow is FREE and MANUAL (no API key, no billing):
     5. python main.py parse response.txt
          -> pretty-prints the recurring problems it found
 
-Automated Gemini workflow (requires `google-genai` and GEMINI_API_KEY):
+Automated AI workflow (uses Groq GPT-OSS 120B with GPT-OSS 20B fallback):
 
     python main.py run
 
@@ -144,20 +144,20 @@ def cmd_run(
 ) -> None:
     """
     Unified end-to-end command: fetch live Reddit data, build the analysis
-    prompt in memory, run the Gemini API analysis directly, and print the
+    prompt in memory, run the AI analysis directly, and print the
     resulting report -- all in a single step.
 
     Defaults to the high-intent Boolean signal search (use_signals=True)
     since that's the recommended search strategy.
     """
-    from analyzer import analyze_posts_via_api_raw, build_full_prompt, parse_response
+    from analyzer import analyze_posts_with_metadata
     import os
     from reddit_client import search_reddit_for_problem_signals, search_reddit_posts
 
-    if not os.environ.get("GEMINI_API_KEY"):
+    if not os.environ.get("GROQ_API_KEY"):
         print(
-            "Error: GEMINI_API_KEY is not set. Create a Gemini API key in Google AI Studio "
-            "and set GEMINI_API_KEY before running this command."
+            "Error: GROQ_API_KEY is not set. Create a GroqCloud API key and set "
+            "GROQ_API_KEY before running this command."
         )
         return
 
@@ -174,13 +174,12 @@ def cmd_run(
         print(f"No posts found for '{query}'. Run aborted.")
         return
 
-    prompt = build_full_prompt(posts)
-
-    print("Analyzing posts via the Gemini API...")
+    print("Analyzing posts with Groq GPT-OSS 120B (20B fallback if needed)...")
     posts_by_id = {p.id: p for p in posts}
-    raw_text = analyze_posts_via_api_raw(posts)
-
-    problems = parse_response(raw_text)
+    analysis = analyze_posts_with_metadata(posts)
+    problems = analysis.problems
+    fallback_note = " (fallback)" if analysis.fallback_used else ""
+    print(f"Completed with {analysis.provider.title()} {analysis.model}{fallback_note}.")
 
     if as_json:
         import json
